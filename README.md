@@ -13,7 +13,7 @@ so old sketches keep working.
 
 ---
 
-## Start in 3 steps
+## Start in 4 steps
 
 ### 1. Download
 
@@ -21,39 +21,45 @@ Download **LeapMotionForProcessing.zip** from the
 [Releases page](../../releases/latest) and unzip it. You get a folder called
 `LeapMotionForProcessing`.
 
-### 2. Install
+### 2. Install the driver
 
-Plug the Leap Motion into a USB port of the computer. Then:
+The Leap Motion needs the official software from its maker, Ultraleap. Download the one for
+your computer, open the downloaded file and follow the installer (it asks for your password once):
 
-**On a Mac**
+| Your computer | Download |
+|---|---|
+| Mac with Apple chip (M1, M2, M3, M4...) | [Ultraleap Hand Tracking 6.2.0 for Apple Silicon](https://s3.eu-west-1.amazonaws.com/downloads.ultraleap.com/software/tracking-software/6.2.0/tracking-software-apple-silicon-6.2.0.pkg) (.pkg, 480 MB) |
+| Mac with Intel processor | [Ultraleap Hand Tracking 6.2.0 for Apple Intel](https://s3.eu-west-1.amazonaws.com/downloads.ultraleap.com/software/tracking-software/6.2.0/tracking-software-apple-intel-6.2.0.pkg) (.pkg, 480 MB) |
+| Windows 10 / 11 (64-bit) | [Ultraleap Hand Tracking 6.2.0 for Windows](https://s3.eu-west-1.amazonaws.com/downloads.ultraleap.com/software/tracking-software/6.2.0/tracking-software-windows-6.2.0.exe) (.exe, 400 MB) |
 
-1. Open the folder `LeapMotionForProcessing` that you unzipped, then the folder `install` inside it.
-2. Right-click the file **`Install Leap Motion for Processing (macOS).command`** and choose **Open**
-   (the first time, macOS asks "are you sure?": click **Open** again). A Terminal window appears
-   and guides you.
-3. If the Leap Motion driver is not installed yet, the window downloads it (about 480 MB) and the
-   official Ultraleap installer opens. Click **Continue** until the end; macOS asks for your Mac
-   password once. When it says "The installation was successful", close it and go back to the
-   Terminal window.
-4. The window copies the library into Processing and opens the test example. Press Enter to close it.
+Not sure which Mac you have? Apple menu > About This Mac: "Chip Apple M…" means Apple chip,
+"Processor Intel…" means Intel. These links come from Ultraleap's official download page,
+[ultraleap.com/downloads/leap-controller](https://www.ultraleap.com/downloads/leap-controller/).
 
-**On Windows**
+After the installer finishes, plug the Leap Motion into a USB port. On a Mac, an app called
+**Ultraleap Hand Tracking** appears in your Applications folder; on Windows an Ultraleap icon
+appears next to the clock. You only do this once.
 
-1. Open the folder `LeapMotionForProcessing` that you unzipped, then the folder `install` inside it.
-2. Double-click **`Install Leap Motion for Processing (Windows).bat`**. If Windows shows "Windows
-   protected your PC", click **More info** and then **Run anyway**. A black window appears and guides you.
-3. If the Leap Motion driver is not installed yet, the window downloads it (about 400 MB) and the
-   official Ultraleap installer opens. Click **Next** until the end and accept the administrator
-   prompt. Close it and go back to the black window.
-4. The window copies the library into Processing. Press any key to close it.
+### 3. Install the library
 
-The installer only does two things: it installs the **Leap Motion driver** (the official
-Ultraleap Hand Tracking software, downloaded from Ultraleap's own website) and it copies the
-**library** into the `libraries` folder of your Processing sketchbook. You can also do both by
-hand: see [What you need](#what-you-need) for the driver links, and copy the
-`LeapMotionForProcessing` folder into `Documents/Processing/libraries`.
+Copy the folder **`LeapMotionForProcessing`** (the one you unzipped in step 1) into the
+`libraries` folder of your Processing sketchbook:
 
-### 3. Try it
+| | Where the `libraries` folder is |
+|---|---|
+| Mac | `Documents` > `Processing` > `libraries` |
+| Windows | `Documents` > `Processing` > `libraries` |
+
+If the `libraries` folder does not exist yet, open Processing once (it creates the `Processing`
+folder) and create `libraries` inside it. If you had an older version of this library, delete the
+old `LeapMotionForProcessing` and `LeapJava` folders first. Restart Processing if it was open.
+
+> Prefer to let a script do steps 2 and 3? Inside the unzipped folder, open `install` and run
+> `Install Leap Motion for Processing (macOS).command` (right-click > Open) or
+> `Install Leap Motion for Processing (Windows).bat`. It downloads the same driver and copies
+> the library for you.
+
+### 4. Try it
 
 In Processing open **File > Examples > Contributed Libraries > Leap Motion for Processing >
 LM_0_Test** and press **Run** (the triangle). Put a hand above the device:

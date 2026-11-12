@@ -96,8 +96,8 @@ public class BridgeTest {
         check(c.images().count() == 2, "two images");
         if (c.images().count() == 2) {
             Image im = c.images().get(0);
-            check(im.width() == 64 && im.height() == 32 && im.bytesPerPixel() == 1, "image size 64x32x1");
-            check(im.data().length == 64 * 32 && (im.data()[5] & 0xFF) == 5, "left image data");
+            check(im.width() == 640 && im.height() == 240 && im.bytesPerPixel() == 1, "image size 640x240x1");
+            check(im.data().length == 640 * 240 && (im.data()[5] & 0xFF) == 5, "left image data");
             check((c.images().get(1).data()[5] & 0xFF) == 105, "right image data");
             check(im.format() == Image.FormatType.INFRARED, "IR format");
         }

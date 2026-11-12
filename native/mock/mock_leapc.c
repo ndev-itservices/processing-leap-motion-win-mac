@@ -30,8 +30,8 @@ static int64_t mock_now_us(void) { struct timeval tv; gettimeofday(&tv, NULL); r
 static float mock_nan(void) { float f; unsigned int b = 0x7FC00000u; memcpy(&f, &b, 4); return f; }
 #include "../LeapC.h"
 
-#define MOCK_W 64
-#define MOCK_H 32
+#define MOCK_W 640
+#define MOCK_H 240
 
 struct _LEAP_CONNECTION {
     int open; int step; int64_t frameId; uint64_t policy; int policyDirty; int tracking_mode; int trackerBroken;
