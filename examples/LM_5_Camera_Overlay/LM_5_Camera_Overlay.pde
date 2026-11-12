@@ -6,7 +6,12 @@
  * Image.project(), which uses the camera calibration of the device
  * (lens distortion included), so the drawing matches the real hand in the picture.
  *
+ * The cameras look upwards, so the raw image is mirrored compared with what you see when
+ * you look down at your hands. By default the image is mirrored back (key m toggles it,
+ * key v flips it vertically).
+ *
  * Keys:  1 = left camera   2 = right camera   b = both   s = toggle skeleton
+ *        m = mirror horizontally   v = flip vertically
  *
  * Leap Motion for Processing (Apple Silicon fork) - Tiago Martins
  */
@@ -15,6 +20,8 @@ import de.voidplus.leapmotion.*;
 LeapMotion leap;
 int view = 0;            // 0 = left camera, 1 = right camera, 2 = both
 boolean showSkeleton = true;
+boolean mirror = true;   // mirror horizontally (natural "looking down" view)
+boolean flipV = false;   // flip vertically
 
 color boneColor = color(0, 255, 160);
 color jointColor = color(255, 200, 0);
@@ -56,12 +63,26 @@ void draw() {
 
   fill(255);
   textAlign(LEFT, TOP);
-  text("1 = left   2 = right   b = both   s = skeleton on/off     hands: " + leap.countHands()
-    + "   " + leap.getFrameRate() + " fps", 12, 10);
+  text("1 = left   2 = right   b = both   s = skeleton   m = mirror (" + (mirror ? "on" : "off") + ")   v = flip ("
+    + (flipV ? "on" : "off") + ")     hands: " + leap.countHands() + "   " + leap.getFrameRate() + " fps", 12, 10);
+}
+
+// image pixel -> screen, honouring the mirror / flip settings
+PVector toScreen(Image img, PVector raw, float x, float y, float w, float h) {
+  PVector p = img.project(raw);
+  if (p == null) return null;
+  float sx = p.x / img.width, sy = p.y / img.height;
+  if (mirror) sx = 1 - sx;
+  if (flipV) sy = 1 - sy;
+  return new PVector(x + sx * w, y + sy * h);
 }
 
 void drawCamera(Image img, float x, float y, float w, float h) {
-  image(img, x, y, w, h);
+  pushMatrix();
+  translate(x + (mirror ? w : 0), y + (flipV ? h : 0));
+  scale(mirror ? -1 : 1, flipV ? -1 : 1);
+  image(img, 0, 0, w, h);
+  popMatrix();
   noFill();
   stroke(90);
   rect(x, y, w, h);
@@ -77,8 +98,8 @@ void drawCamera(Image img, float x, float y, float w, float h) {
     for (Finger finger : hand.getFingers()) {
       for (int b = 0; b < 4; b++) {
         Bone bone = finger.getBone(b);
-        PVector a = img.project(bone.getRawPrevJoint(), x, y, w, h);
-        PVector z = img.project(bone.getRawNextJoint(), x, y, w, h);
+        PVector a = toScreen(img, bone.getRawPrevJoint(), x, y, w, h);
+        PVector z = toScreen(img, bone.getRawNextJoint(), x, y, w, h);
         if (a != null && z != null) line(a.x, a.y, z.x, z.y);
       }
     }
@@ -87,17 +108,17 @@ void drawCamera(Image img, float x, float y, float w, float h) {
     fill(jointColor);
     for (Finger finger : hand.getFingers()) {
       for (int b = 0; b < 4; b++) {
-        PVector j = img.project(finger.getBone(b).getRawNextJoint(), x, y, w, h);
+        PVector j = toScreen(img, finger.getBone(b).getRawNextJoint(), x, y, w, h);
         if (j != null) ellipse(j.x, j.y, 8, 8);
       }
-      PVector mcp = img.project(finger.getBone(0).getRawPrevJoint(), x, y, w, h);
+      PVector mcp = toScreen(img, finger.getBone(0).getRawPrevJoint(), x, y, w, h);
       if (mcp != null) ellipse(mcp.x, mcp.y, 8, 8);
     }
     // palm and wrist
     fill(palmColor);
-    PVector palm = img.project(hand.getRawPosition(), x, y, w, h);
+    PVector palm = toScreen(img, hand.getRawPosition(), x, y, w, h);
     if (palm != null) ellipse(palm.x, palm.y, 14, 14);
-    PVector wrist = img.project(hand.getArm().getWristRawPosition(), x, y, w, h);
+    PVector wrist = toScreen(img, hand.getArm().getWristRawPosition(), x, y, w, h);
     if (wrist != null) ellipse(wrist.x, wrist.y, 10, 10);
     if (palm != null && wrist != null) {
       stroke(palmColor);
@@ -119,4 +140,6 @@ void keyPressed() {
   if (key == '2') view = 1;
   if (key == 'b' || key == 'B') view = 2;
   if (key == 's' || key == 'S') showSkeleton = !showSkeleton;
+  if (key == 'm' || key == 'M') mirror = !mirror;
+  if (key == 'v' || key == 'V') flipV = !flipV;
 }
