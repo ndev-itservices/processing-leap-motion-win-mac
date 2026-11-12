@@ -18,6 +18,6 @@ if not exist "%JAVA_HOME%\include\jni.h" (
 if not exist "%OUT%\windows-amd64" mkdir "%OUT%\windows-amd64"
 echo Building the LeapJava JNI bridge for Windows x64
 cl /nologo /O2 /W3 /I"%HERE%" /I"%JAVA_HOME%\include" /I"%JAVA_HOME%\include\win32" /LD "%HERE%leapjni.c" ^
-   /Fe"%OUT%\windows-amd64\LeapJava.dll" /Fo"%OUT%\\" || exit /b 1
+   /Fe"%OUT%\windows-amd64\LeapJava.dll" /Fo"%OUT%/" || exit /b 1
 copy /Y "%OUT%\windows-amd64\LeapJava.dll" "%OUT%\LeapJava.dll" >nul
 echo built %OUT%\windows-amd64\LeapJava.dll

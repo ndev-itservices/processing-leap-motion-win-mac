@@ -97,15 +97,37 @@ The full reference is in [original/README.md](original/README.md) (same API).
 
 ## What you need
 
+### Mac
+
 | | |
 |---|---|
-| Computer | Mac with macOS **11 (Big Sur) or newer**, Apple Silicon (M1, M2, M3, M4) or Intel; or Windows 10/11 64-bit |
-| Processing | version **4** ([processing.org/download](https://processing.org/download)) |
+| macOS | **11 (Big Sur) or newer**. Tested up to macOS 27.0.1 |
+| Computer | Apple Silicon (M1, M2, M3, M4...) or Intel |
+| Processing | version 4: [processing.org/download](https://processing.org/download) |
 | Device | Leap Motion Controller (the original, 2013) or Leap Motion Controller 2 |
-| Driver | Ultraleap Hand Tracking 6.2 (installed by the installer; needs an administrator password) |
+| Driver (Apple Silicon) | [Ultraleap Hand Tracking 6.2.0 for Apple Silicon (.pkg, 480 MB)](https://s3.eu-west-1.amazonaws.com/downloads.ultraleap.com/software/tracking-software/6.2.0/tracking-software-apple-silicon-6.2.0.pkg) |
+| Driver (Intel Mac) | [Ultraleap Hand Tracking 6.2.0 for Apple Intel (.pkg)](https://s3.eu-west-1.amazonaws.com/downloads.ultraleap.com/software/tracking-software/6.2.0/tracking-software-apple-intel-6.2.0.pkg) |
 
-Tested on macOS 27.0.1 with Processing 4.4.10 and an original Leap Motion Controller.
-Linux (Ubuntu 22.04) binaries are built too but have not been tested with a device.
+Not sure which Mac you have? Apple menu > About This Mac: "Chip Apple M…" is Apple Silicon,
+"Processor Intel…" is Intel. The installer in step 2 downloads the right driver for you; the
+links are here in case you prefer to install it by hand (double-click the .pkg and follow it).
+
+### Windows
+
+| | |
+|---|---|
+| Windows | **10 or 11, 64-bit** |
+| Computer | Intel or AMD processor (Windows on ARM is not supported by the Ultraleap driver) |
+| Processing | version 4: [processing.org/download](https://processing.org/download) |
+| Device | Leap Motion Controller (the original, 2013) or Leap Motion Controller 2 |
+| Driver | [Ultraleap Hand Tracking 6.2.0 for Windows (.exe, 400 MB)](https://s3.eu-west-1.amazonaws.com/downloads.ultraleap.com/software/tracking-software/6.2.0/tracking-software-windows-6.2.0.exe) |
+
+All drivers come from Ultraleap's official page:
+[ultraleap.com/downloads/leap-controller](https://www.ultraleap.com/downloads/leap-controller/).
+
+Tested on macOS 27.0.1 with Processing 4.4.10 and an original Leap Motion Controller. The Windows
+and Linux (Ubuntu 22.04) binaries are built and tested automatically against a simulated device;
+they have not yet been tried with a real Leap Motion. Please report how it goes in an issue.
 
 ---
 
