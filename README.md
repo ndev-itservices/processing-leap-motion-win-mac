@@ -8,6 +8,10 @@ Darius Morawiec, updated by **Tiago Martins** so that it works on today's comput
 original only ran on old Intel Macs. The programming interface and the examples are the same,
 so old sketches keep working.
 
+> **Tested with the original Leap Motion Controller (2013) on a Mac.**
+> The Leap Motion Controller 2 is supported by the driver and the library but has **not been tested**
+> yet; if you have one, please tell us how it goes in an issue.
+
 > Made for artists and students: you do not need to compile anything or use the Terminal.
 > If something does not work, read [Problems and solutions](#problems-and-solutions).
 
