@@ -103,8 +103,43 @@ public class Image {
         }
     }
 
+    private float[] calibScale;   // cached (x, y) factors from calibration pixels to image pixels
+
+    /**
+     * Scale factors from the pixel coordinates returned by LeapRectilinearToPixel to the
+     * coordinates of this image. The Hyperion calibration of the original Leap Motion Controller
+     * is expressed for a 640x480 frame while the delivered images are 640x240, so the vertical
+     * factor is 0.5 there. Computed from the principal point (pixel of the central ray): if it
+     * sits at n times the image centre, coordinates are divided by n (n = 1, 2, 3...).
+     *
+     * @return {scaleX, scaleY}, or {1, 1} when unknown
+     */
+    public float[] calibrationScale() {
+        if (calibScale != null) return calibScale;
+        float[] sc = {1f, 1f};
+        if (controller != null && width > 0 && height > 0) {
+            Vector pp = controller.rectilinearToPixel(id, new Vector(0, 0, 1));
+            if (pp != null && !Float.isNaN(pp.getX()) && !Float.isNaN(pp.getY()) && pp.getX() > 0 && pp.getY() > 0) {
+                int nx = Math.round(pp.getX() * 2f / width);
+                int ny = Math.round(pp.getY() * 2f / height);
+                if (nx >= 2) sc[0] = 1f / nx;
+                if (ny >= 2) sc[1] = 1f / ny;
+                calibScale = sc;
+            }
+        }
+        return sc;
+    }
+
     /** Same as {@link #project(Vector)} with an explicit projection mode (see MODE_* constants). */
     public Vector project(Vector position, int mode) {
+        Vector p = projectRaw(position, mode);
+        if (Float.isNaN(p.getX())) return p;
+        float[] sc = calibrationScale();
+        return new Vector(p.getX() * sc[0], p.getY() * sc[1], 0);
+    }
+
+    /** Projection in the pixel frame of the calibration, without {@link #calibrationScale()}. */
+    public Vector projectRaw(Vector position, int mode) {
         Vector nan = new Vector(Float.NaN, Float.NaN, 0);
         if (mode == MODE_EXTRINSIC || mode == MODE_EXTRINSIC_INVERSE) {
             float[] m = controller == null ? null : controller.extrinsicCameraMatrix(id);

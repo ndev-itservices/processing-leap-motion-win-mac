@@ -171,7 +171,7 @@ void printDebug() {
     com.leapmotion.leap.Vector centre = raw.rectify(new com.leapmotion.leap.Vector(img.width / 2, img.height / 2, 0));
     println("   ray at image centre: " + centre);
     com.leapmotion.leap.Vector p0 = raw.warp(new com.leapmotion.leap.Vector(0, 0, 0));
-    println("   pixel of ray (0,0,1): " + p0);
+    println("   pixel of ray (0,0,1): " + p0 + "   calibration scale: " + raw.calibrationScale()[0] + ", " + raw.calibrationScale()[1]);
     for (int mode = 0; mode < 6; mode++) {
       com.leapmotion.leap.Vector t = new com.leapmotion.leap.Vector(0, 200, 0);
       println("   mode " + mode + " point (0,200,0) -> " + raw.project(t, mode) + "   point (50,200,0) -> "
