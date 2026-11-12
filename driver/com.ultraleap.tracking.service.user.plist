@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.ultraleap.tracking.service</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>__APP__/Contents/bin/libtrack_server</string>
+    </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>LIBTRACK_IS_SERVICE</key>
+        <string>1</string>
+    </dict>
+    <key>WorkingDirectory</key>
+    <string>__APP__/Contents/bin</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>ProcessType</key>
+    <string>Interactive</string>
+    <key>StandardOutPath</key>
+    <string>__HOME__/Library/Logs/Ultraleap/libtrack_server.log</string>
+    <key>StandardErrorPath</key>
+    <string>__HOME__/Library/Logs/Ultraleap/libtrack_server.err.log</string>
+</dict>
+</plist>
