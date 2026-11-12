@@ -102,35 +102,37 @@ public class BridgeTest {
             check(im.format() == Image.FormatType.INFRARED, "IR format");
         }
         check(f.images().count() == c.images().count(), "frame.images()");
-        // rectilinear <-> pixel mapping (mock pinhole: pixel = (320 + 135 x, 120 + 135 y))
+        // rectilinear <-> pixel mapping (mock: pixel = (320 + 135 h, 120 + 68 v))
         Vector px = c.rectilinearToPixel(0, new Vector(0.5f, -0.25f, 1));
-        check(px != null && Math.abs(px.getX() - 387.5f) < 1e-3 && Math.abs(px.getY() - 172.5f) < 1e-3, "rectilinearToPixel (calibration frame 640x480): " + px);
-        Vector ray = c.pixelToRectilinear(1, new Vector(455f, 240f, 0));
+        check(px != null && Math.abs(px.getX() - 387.5f) < 1e-3 && Math.abs(px.getY() - 103f) < 1e-3, "rectilinearToPixel: " + px);
+        Vector ray = c.pixelToRectilinear(1, new Vector(455f, 120f, 0));
         check(ray != null && Math.abs(ray.getX() - 1f) < 1e-5 && Math.abs(ray.getY()) < 1e-5 && ray.getZ() == 1f, "pixelToRectilinear: " + ray);
         if (c.images().count() == 2) {
-            Image left = c.images().get(0);
+            Image left = c.images().get(0), right = c.images().get(1);
             Vector w = left.warp(new Vector(0.5f, -0.25f, 0));
             check(Math.abs(w.getX() - 387.5f) < 1e-3, "Image.warp: " + w);
-            Vector rr = left.rectify(new Vector(320f, 240f, 0));
+            Vector rr = left.rectify(new Vector(320f, 120f, 0));
             check(Math.abs(rr.getX()) < 1e-6 && Math.abs(rr.getY()) < 1e-6, "Image.rectify centre: " + rr);
             float[] sc = left.calibrationScale();
-            check(sc[0] == 1f && Math.abs(sc[1] - 0.5f) < 1e-6, "calibration scale (640x480 frame, 640x240 image): " + sc[0] + ", " + sc[1]);
-            // project: point straight above the left camera (x = -20) -> ray 0 -> image centre
-            Vector pr = left.project(new Vector(-Image.cameraOffset, 200, 0));
-            check(Math.abs(pr.getX() - 320f) < 1e-3 && Math.abs(pr.getY() - 120f) < 1e-3, "Image.project above left camera: " + pr);
-            check(Float.isNaN(left.project(new Vector(0, 0, 0)).getX()), "Image.project behind camera is NaN");
+            check(sc[0] == 1f && sc[1] == 1f, "calibration scale 1,1 (calibration matches the image): " + sc[0] + ", " + sc[1]);
             float[] ex = c.extrinsicCameraMatrix(0);
-            check(ex != null && ex[12] == -20f && ex[0] == -1f, "extrinsic matrix (left camera at x = -20)");
-            // 100 mm to the right of the left camera, 200 mm up: camera x = -100 -> ray x = -0.5, rotated 180 -> +0.5 -> pixel 320 + 67.5
+            check(ex != null && ex[12] == -20f && ex[0] == 1f && ex[5] == 1f, "extrinsic matrix: identity rotation, left camera at x = -20");
+            // straight above the left camera: ray (0, 0) -> principal point
+            Vector pr = left.project(new Vector(-20, 200, 0));
+            check(Math.abs(pr.getX() - 320f) < 1e-3 && Math.abs(pr.getY() - 120f) < 1e-3, "project above left camera -> principal point: " + pr);
+            check(Float.isNaN(left.project(new Vector(0, 0, 0)).getX()), "project below the device is NaN");
+            // 100 mm to the right of the left camera: h = -100/200 = -0.5 -> x = 320 - 67.5 (raw image is mirrored)
             Vector pr2 = left.project(new Vector(80, 200, 0));
-            check(Math.abs(pr2.getX() - 387.5f) < 1e-2 && Math.abs(pr2.getY() - 120f) < 1e-2, "Image.project via extrinsic matrix (default, rotated): " + pr2);
-            Vector pr2b = left.project(new Vector(80, 200, 0), Image.MODE_EXTRINSIC_INVERSE);
-            check(Math.abs(pr2b.getX() - 252.5f) < 1e-2, "Image.project extrinsic not rotated: " + pr2b);
-            // 50 mm towards the user (+z): camera y = +50 -> ray y = 0.25, rotated -> -0.25 -> calibration y = 240 - 67.5 = 172.5 -> image y = 86.25
-            Vector pr3 = c.images().get(1).project(new Vector(20, 200, 50));
-            check(Math.abs(pr3.getX() - 320f) < 1e-2 && Math.abs(pr3.getY() - 86.25f) < 1e-2, "right image project (scaled to the image): " + pr3);
-            Vector pr3raw = c.images().get(1).projectRaw(new Vector(20, 200, 50), Image.MODE_EXTRINSIC);
-            check(Math.abs(pr3raw.getY() - 172.5f) < 1e-2, "projectRaw in the calibration frame: " + pr3raw);
+            check(Math.abs(pr2.getX() - 252.5f) < 1e-2 && Math.abs(pr2.getY() - 120f) < 1e-2, "project right of the camera -> left in the raw image: " + pr2);
+            // 50 mm towards the user above the right camera: v = 50/200 = 0.25 -> y = 120 + 17 (towards the user = bottom)
+            Vector pr3 = right.project(new Vector(20, 200, 50));
+            check(Math.abs(pr3.getX() - 320f) < 1e-2 && Math.abs(pr3.getY() - 137f) < 1e-2, "project towards the user -> bottom of the image: " + pr3);
+            // the real device sample: palm (-66.8, 181.4, 203.8) on the left image lands bottom-right of centre
+            Vector palm = left.project(new Vector(-66.8f, 181.4f, 203.8f));
+            check(palm.getX() > 340 && palm.getX() < 370 && palm.getY() > 180 && palm.getY() < 240, "real-device palm sample: " + palm);
+            // the fixed-offset mode gives the same result as the extrinsic one on this device
+            Vector v2 = left.project(new Vector(-66.8f, 181.4f, 203.8f), Image.MODE_V2);
+            check(palm.distanceTo(v2) < 1e-3, "MODE_V2 == MODE_EXTRINSIC for a +-20 mm offset: " + v2);
         }
 
         System.out.println("== gestures (circle drawn by the mock)");

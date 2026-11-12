@@ -75,30 +75,31 @@ public class Image {
     public static int projectionMode = 0;
 
     /**
-     * Extrinsic matrix read as camera-to-Leap (documented): p_cam = R^T (p - t), with the image
-     * plane rotated 180 degrees (ray = (-x/z, -y/z, 1)). Verified with an original Leap Motion
-     * Controller on Hyperion 6.2: without the rotation the skeleton appears upside down and mirrored.
+     * Default. Camera position taken from the extrinsic matrix (LeapExtrinsicCameraMatrix), then
+     * the Leap Motion ray convention: horizontal slope = -(x - cx) / (y - cy), vertical slope =
+     * (z - cz) / (y - cy), depth along the Leap y axis. Verified on an original Leap Motion
+     * Controller with Hyperion 6.2.0 (the service reports an identity rotation and +-20 mm offsets).
      */
     public static final int MODE_EXTRINSIC = 0;
-    /** Extrinsic matrix as camera-to-Leap without the 180 degree rotation. */
-    public static final int MODE_EXTRINSIC_INVERSE = 1;
-    /** V2 formula: horizontal = -(x + offset) / y, vertical = z / y. */
-    public static final int MODE_V2 = 2;
-    /** V2 formula with the horizontal sign flipped. */
-    public static final int MODE_V2_FLIP_H = 3;
-    /** V2 formula with the vertical sign flipped. */
-    public static final int MODE_V2_FLIP_V = 4;
-    /** V2 formula with both signs flipped. */
-    public static final int MODE_V2_FLIP_HV = 5;
+    /** Same convention with a fixed camera offset of {@link #cameraOffset} mm (no extrinsic matrix). */
+    public static final int MODE_V2 = 1;
+    /** Fixed offset, horizontal sign flipped: (x + o) / y, z / y. */
+    public static final int MODE_V2_FLIP_H = 2;
+    /** Fixed offset, vertical sign flipped: -(x + o) / y, -z / y. */
+    public static final int MODE_V2_FLIP_V = 3;
+    /** Fixed offset, both signs flipped. */
+    public static final int MODE_V2_FLIP_HV = 4;
+    /** Extrinsic matrix with depth along the camera z axis (standard pinhole); wrong for Hyperion. */
+    public static final int MODE_EXTRINSIC_Z = 5;
 
     public static String projectionModeName(int mode) {
         switch (mode) {
-            case MODE_EXTRINSIC: return "extrinsic, rotated 180 (default)";
-            case MODE_EXTRINSIC_INVERSE: return "extrinsic, not rotated";
-            case MODE_V2: return "V2 slopes -(x+o)/y, z/y";
-            case MODE_V2_FLIP_H: return "V2 slopes (x+o)/y, z/y";
-            case MODE_V2_FLIP_V: return "V2 slopes -(x+o)/y, -z/y";
-            case MODE_V2_FLIP_HV: return "V2 slopes (x+o)/y, -z/y";
+            case MODE_EXTRINSIC: return "extrinsic offset, slopes -x/y, z/y (default)";
+            case MODE_V2: return "fixed 20 mm offset, slopes -x/y, z/y";
+            case MODE_V2_FLIP_H: return "fixed offset, slopes x/y, z/y";
+            case MODE_V2_FLIP_V: return "fixed offset, slopes -x/y, -z/y";
+            case MODE_V2_FLIP_HV: return "fixed offset, slopes x/y, -z/y";
+            case MODE_EXTRINSIC_Z: return "extrinsic, depth along camera z";
             default: return "unknown";
         }
     }
@@ -107,10 +108,10 @@ public class Image {
 
     /**
      * Scale factors from the pixel coordinates returned by LeapRectilinearToPixel to the
-     * coordinates of this image. The Hyperion calibration of the original Leap Motion Controller
-     * is expressed for a 640x480 frame while the delivered images are 640x240, so the vertical
-     * factor is 0.5 there. Computed from the principal point (pixel of the central ray): if it
-     * sits at n times the image centre, coordinates are divided by n (n = 1, 2, 3...).
+     * coordinates of this image, computed from the principal point (pixel of the central ray):
+     * if it sits at n times the image centre, coordinates are divided by n. For the original
+     * Leap Motion Controller on Hyperion 6.2 the factors are 1 (the calibration matches the
+     * delivered 640x240 image).
      *
      * @return {scaleX, scaleY}, or {1, 1} when unknown
      */
@@ -141,26 +142,29 @@ public class Image {
     /** Projection in the pixel frame of the calibration, without {@link #calibrationScale()}. */
     public Vector projectRaw(Vector position, int mode) {
         Vector nan = new Vector(Float.NaN, Float.NaN, 0);
-        if (mode == MODE_EXTRINSIC || mode == MODE_EXTRINSIC_INVERSE) {
+        float x = position.getX(), y = position.getY(), z = position.getZ();
+        if (mode == MODE_EXTRINSIC || mode == MODE_EXTRINSIC_Z) {
             float[] m = controller == null ? null : controller.extrinsicCameraMatrix(id);
             if (m == null) {
                 mode = MODE_V2;
             } else {
-                // p_cam = R^T (p - t); columns of R are m[0..2], m[4..6], m[8..10], t = m[12..14]
-                float dx = position.getX() - m[12], dy = position.getY() - m[13], dz = position.getZ() - m[14];
+                // p' = R^T (p - t); columns of R are m[0..2], m[4..6], m[8..10], t = m[12..14]
+                float dx = x - m[12], dy = y - m[13], dz = z - m[14];
                 float cx = m[0] * dx + m[1] * dy + m[2] * dz;
                 float cy = m[4] * dx + m[5] * dy + m[6] * dz;
                 float cz = m[8] * dx + m[9] * dy + m[10] * dz;
-                if (cz <= 1f) return nan;
-                float sign = (mode == MODE_EXTRINSIC) ? -1f : 1f;   // 180 degree rotation of the image plane
-                return warp(new Vector(sign * cx / cz, sign * cy / cz, 0));
+                if (mode == MODE_EXTRINSIC_Z) {
+                    if (cz <= 1f) return nan;
+                    return warp(new Vector(cx / cz, cy / cz, 0));
+                }
+                if (cy <= 1f) return nan;
+                return warp(new Vector(-cx / cy, cz / cy, 0));
             }
         }
-        float y = position.getY();
         if (y <= 1f) return nan;
         float offset = id == 0 ? cameraOffset : -cameraOffset;
-        float h = -(position.getX() + offset) / y;
-        float v = position.getZ() / y;
+        float h = -(x + offset) / y;
+        float v = z / y;
         if (mode == MODE_V2_FLIP_H || mode == MODE_V2_FLIP_HV) h = -h;
         if (mode == MODE_V2_FLIP_V || mode == MODE_V2_FLIP_HV) v = -v;
         return warp(new Vector(h, v, 0));

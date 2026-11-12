@@ -134,28 +134,25 @@ static void build_images(struct _LEAP_CONNECTION* c) {
     c->imgEv.info.frame_id = c->frameId; c->imgEv.info.timestamp = mock_now_us(); c->imgEv.calib = NULL;
 }
 
-/* Pinhole camera model for tests, mimicking the original Leap Motion Controller on Hyperion: the
- * calibration frame is 640x480 (principal point 320, 240, focal 270 px) while the delivered images
- * are 640x240, so clients must halve the y coordinate (see Image.calibrationScale()).
- * pixel = (cx + f * ray.x, cy + f * ray.y); the inverse for LeapPixelToRectilinear. Camera 1 = left, 2 = right. */
+/* Camera model for tests, mimicking the original Leap Motion Controller on Hyperion 6.2:
+ * 640x240 images, principal point (320, 120), focal 135 px horizontally and 68 px vertically
+ * (2:1 pixel binning). The extrinsic matrix is an identity rotation with a +-20 mm offset, as the
+ * real service reports; rays are Leap slopes (-x/y, z/y). Camera 1 = left, 2 = right. */
 LEAP_EXPORT LEAP_VECTOR LEAP_CALL LeapRectilinearToPixel(LEAP_CONNECTION c, eLeapPerspectiveType cam, LEAP_VECTOR r) {
     LEAP_VECTOR p; (void)c;
     if (cam != eLeapPerspectiveType_stereo_left && cam != eLeapPerspectiveType_stereo_right) { p.x = p.y = mock_nan(); p.z = 1; return p; }
-    p.x = 320.0f + 135.0f * r.x; p.y = 240.0f + 270.0f * r.y; p.z = 1; return p;
+    p.x = 320.0f + 135.0f * r.x; p.y = 120.0f + 68.0f * r.y; p.z = 1; return p;
 }
 LEAP_EXPORT LEAP_VECTOR LEAP_CALL LeapPixelToRectilinear(LEAP_CONNECTION c, eLeapPerspectiveType cam, LEAP_VECTOR px) {
     LEAP_VECTOR r; (void)c;
     if (cam != eLeapPerspectiveType_stereo_left && cam != eLeapPerspectiveType_stereo_right) { r.x = r.y = mock_nan(); r.z = 1; return r; }
-    r.x = (px.x - 320.0f) / 135.0f; r.y = (px.y - 240.0f) / 270.0f; r.z = 1; return r;
+    r.x = (px.x - 320.0f) / 135.0f; r.y = (px.y - 120.0f) / 68.0f; r.z = 1; return r;
 }
-
-/* Camera-to-Leap transform (column major) for the mock: camera z = Leap +y (looking up),
- * camera x = Leap -x (raw images are mirrored), camera y = Leap +z, camera at x = -20 (left) / +20 (right). */
 LEAP_EXPORT void LEAP_CALL LeapExtrinsicCameraMatrix(LEAP_CONNECTION c, eLeapPerspectiveType cam, float* m) {
     (void)c;
     if (cam != eLeapPerspectiveType_stereo_left && cam != eLeapPerspectiveType_stereo_right) return;
     float t = cam == eLeapPerspectiveType_stereo_left ? -20.0f : 20.0f;
-    float v[16] = { -1, 0, 0, 0,   0, 0, 1, 0,   0, 1, 0, 0,   t, 0, 0, 1 };
+    float v[16] = { 1, 0, 0, 0,   0, 1, 0, 0,   0, 0, 1, 0,   t, 0, 0, 1 };
     memcpy(m, v, sizeof v);
 }
 
