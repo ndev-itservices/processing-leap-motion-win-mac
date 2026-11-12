@@ -35,6 +35,8 @@ if [ ! -x "$JDK/bin/javac" ]; then
   exit 1
 fi
 JAVAC="$JDK/bin/javac"; JAR="$JDK/bin/jar"
+# classpath separator: ';' on Windows (Git Bash / MSYS), ':' elsewhere
+case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) SEP=";" ;; *) SEP=":" ;; esac
 
 VERSION="$(sed -n 's/^prettyVersion=//p' library.properties)"
 echo "== Leap Motion for Processing $VERSION"
@@ -46,7 +48,7 @@ mkdir -p build/classes build/test-classes native/build
 
 echo "== compiling Java"
 $JAVAC --release 17 -encoding UTF-8 -nowarn -cp "$CORE_JAR" -d build/classes $(find src -name "*.java")
-$JAVAC --release 17 -encoding UTF-8 -nowarn -cp "$CORE_JAR:build/classes" -d build/test-classes $(find test/java -name "*.java")
+$JAVAC --release 17 -encoding UTF-8 -nowarn -cp "$CORE_JAR${SEP}build/classes" -d build/test-classes $(find test/java -name "*.java")
 
 echo "== packaging jars"
 $JAR --create --file build/LeapJava.jar -C build/classes com
