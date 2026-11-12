@@ -83,5 +83,11 @@ if [ "$(uname -s)" = "Darwin" ] && [ "${SKIP_NATIVE:-0}" != "1" ]; then
 fi
 mkdir -p "$D/install" && cp install/* "$D/install/" 2>/dev/null || true
 find "$D" -name ".DS_Store" -delete
-( cd dist && rm -f LeapMotionForProcessing.zip && zip -qr LeapMotionForProcessing.zip LeapMotionForProcessing )
+rm -f dist/LeapMotionForProcessing.zip
+if command -v zip >/dev/null 2>&1; then
+  ( cd dist && zip -qr LeapMotionForProcessing.zip LeapMotionForProcessing )
+else
+  # no zip command (Git Bash on Windows): the JDK's jar tool writes a plain zip
+  "$JAR" --create --no-manifest --file dist/LeapMotionForProcessing.zip -C dist LeapMotionForProcessing
+fi
 echo "== done: $D  and  dist/LeapMotionForProcessing.zip"
