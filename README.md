@@ -1,6 +1,6 @@
 # Leap Motion for Processing
 
-Use the **Leap Motion Controller** (the small hand-tracking camera) in **Processing 4**,
+Use the **Leap Motion Controller** (the small hand-tracking camera) in **Processing 4** (not 3),
 on **macOS 11 or newer (Apple Silicon and Intel)** and **Windows 10/11**.
 
 A fork of [Leap Motion for Processing](https://github.com/nok/leap-motion-processing) by
@@ -116,7 +116,8 @@ More: `hand.isLeft()`, `hand.getPinchStrength()`, `hand.getIndexFinger()`,
 `finger.getRawPosition()` (millimetres), `leap.getImages()` (camera pictures),
 `new LeapMotion(this).allowGestures()` with `leapOnSwipeGesture(...)`,
 `leapOnCircleGesture(...)`, `leapOnKeyTapGesture(...)`, `leapOnScreenTapGesture(...)`.
-The full reference is in [original/README.md](original/README.md) (same API).
+The full reference is in [original/README.md](original/README.md): same API, but ignore that page's
+installation notes and Processing 3 version list, they describe the old Intel-only version.
 
 ---
 
@@ -128,7 +129,7 @@ The full reference is in [original/README.md](original/README.md) (same API).
 |---|---|
 | macOS | **11 (Big Sur) or newer**. Tested up to macOS 27.0.1 |
 | Computer | Apple Silicon (M1, M2, M3, M4...) or Intel |
-| Processing | version 4: [processing.org/download](https://processing.org/download) |
+| Processing | **version 4** from [processing.org/download](https://processing.org/download). Processing 3 is not supported |
 | Device | Leap Motion Controller (the original, 2013) or Leap Motion Controller 2 |
 | Driver (Apple Silicon) | [Ultraleap Hand Tracking 6.2.0 for Apple Silicon (.pkg, 480 MB)](https://s3.eu-west-1.amazonaws.com/downloads.ultraleap.com/software/tracking-software/6.2.0/tracking-software-apple-silicon-6.2.0.pkg) |
 | Driver (Intel Mac) | [Ultraleap Hand Tracking 6.2.0 for Apple Intel (.pkg)](https://s3.eu-west-1.amazonaws.com/downloads.ultraleap.com/software/tracking-software/6.2.0/tracking-software-apple-intel-6.2.0.pkg) |
@@ -143,7 +144,7 @@ links are here in case you prefer to install it by hand (double-click the .pkg a
 |---|---|
 | Windows | **10 or 11, 64-bit** |
 | Computer | Intel or AMD processor (Windows on ARM is not supported by the Ultraleap driver) |
-| Processing | version 4: [processing.org/download](https://processing.org/download) |
+| Processing | **version 4** from [processing.org/download](https://processing.org/download). Processing 3 is not supported |
 | Device | Leap Motion Controller (the original, 2013) or Leap Motion Controller 2 |
 | Driver | [Ultraleap Hand Tracking 6.2.0 for Windows (.exe, 400 MB)](https://s3.eu-west-1.amazonaws.com/downloads.ultraleap.com/software/tracking-software/6.2.0/tracking-software-windows-6.2.0.exe) |
 
