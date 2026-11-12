@@ -1,6 +1,6 @@
 # Changelog
 
-## 3.0.0 (2026-11-12)
+## 4.0.0 (2026-11-12)
 
 Fork of "Leap Motion for Processing" 2.3.1.6 by Darius Morawiec, by Tiago Martins.
 
