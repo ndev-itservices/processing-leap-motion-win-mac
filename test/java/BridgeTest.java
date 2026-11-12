@@ -86,7 +86,8 @@ public class BridgeTest {
         check(idx.bone(com.leapmotion.leap.Bone.Type.TYPE_METACARPAL).prevJoint().equals(h.palmPosition()), "metacarpal starts at palm");
         check(Math.abs(idx.width() - 15f) < 1e-6, "bone width");
         check(h.arm().isValid() && h.arm().wristPosition().equals(new Vector(20, 190, 70)) && Math.abs(h.arm().width() - 50f) < 1e-6, "arm");
-        check(c.frame(1).isValid() && c.frame(1).id() == f.id() - 1 || c.frame(1).id() < f.id(), "frame history");
+        Frame f1 = c.frame(1);   // frames keep arriving, so frame(1) is f's predecessor or f itself
+        check(f1.isValid() && f1.id() <= f.id() && f1.id() >= f.id() - 2, "frame history: " + f1.id() + " vs " + f.id());
 
         System.out.println("== policy / images");
         check(c.isPolicySet(Controller.PolicyFlag.POLICY_BACKGROUND_FRAMES), "background frames policy");
@@ -101,6 +102,22 @@ public class BridgeTest {
             check(im.format() == Image.FormatType.INFRARED, "IR format");
         }
         check(f.images().count() == c.images().count(), "frame.images()");
+        // rectilinear <-> pixel mapping (mock pinhole: pixel = (320 + 135 x, 120 + 135 y))
+        Vector px = c.rectilinearToPixel(0, new Vector(0.5f, -0.25f, 1));
+        check(px != null && Math.abs(px.getX() - 387.5f) < 1e-3 && Math.abs(px.getY() - 86.25f) < 1e-3, "rectilinearToPixel: " + px);
+        Vector ray = c.pixelToRectilinear(1, new Vector(455f, 120f, 0));
+        check(ray != null && Math.abs(ray.getX() - 1f) < 1e-5 && Math.abs(ray.getY()) < 1e-5 && ray.getZ() == 1f, "pixelToRectilinear: " + ray);
+        if (c.images().count() == 2) {
+            Image left = c.images().get(0);
+            Vector w = left.warp(new Vector(0.5f, -0.25f, 0));
+            check(Math.abs(w.getX() - 387.5f) < 1e-3, "Image.warp: " + w);
+            Vector rr = left.rectify(new Vector(320f, 120f, 0));
+            check(Math.abs(rr.getX()) < 1e-6 && Math.abs(rr.getY()) < 1e-6, "Image.rectify centre: " + rr);
+            // project: point straight above the left camera (x = -20) -> horizontal slope 0 -> pixel x = 320
+            Vector pr = left.project(new Vector(-Image.cameraOffset, 200, 0));
+            check(Math.abs(pr.getX() - 320f) < 1e-3 && Math.abs(pr.getY() - 120f) < 1e-3, "Image.project above left camera: " + pr);
+            check(Float.isNaN(left.project(new Vector(0, 0, 0)).getX()), "Image.project behind camera is NaN");
+        }
 
         System.out.println("== gestures (circle drawn by the mock)");
         int circles = 0; CircleGesture last = null;

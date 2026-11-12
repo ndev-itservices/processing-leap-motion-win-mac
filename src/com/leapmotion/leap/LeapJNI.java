@@ -181,5 +181,10 @@ final class LeapJNI {
 
     static native String nLastLog(long h);
 
+    /** camera: 1 left, 2 right. ray = (x, y, 1). Fills out[0..1] with the pixel; false if unavailable. */
+    static native boolean nRectilinearToPixel(long h, int camera, float x, float y, float z, float[] out2);
+
+    static native boolean nPixelToRectilinear(long h, int camera, float px, float py, float[] out2);
+
     static native int nBridgeVersion();
 }

@@ -22,17 +22,55 @@ public class Image {
         }
     }
 
-    private static final Image INVALID = new Image(false, 0, 0, 0, 0, 0, 0, FormatType.INFRARED, new byte[0]);
+    private static final Image INVALID = new Image(false, 0, 0, 0, 0, 0, 0, FormatType.INFRARED, new byte[0], null);
 
     private final boolean valid;
     private final int id, width, height, bpp;
     private final long sequenceId, timestamp;
     private final FormatType format;
     private final byte[] data;
+    private final Controller controller;
 
-    Image(boolean valid, int id, int width, int height, int bpp, long sequenceId, long timestamp, FormatType format, byte[] data) {
+    /** Half of the distance between the two cameras, in mm (original Leap Motion Controller: 20 mm). */
+    public static float cameraOffset = 20f;
+
+    Image(boolean valid, int id, int width, int height, int bpp, long sequenceId, long timestamp, FormatType format, byte[] data, Controller controller) {
         this.valid = valid; this.id = id; this.width = width; this.height = height; this.bpp = bpp;
         this.sequenceId = sequenceId; this.timestamp = timestamp; this.format = format; this.data = data;
+        this.controller = controller;
+    }
+
+    /**
+     * Maps a camera ray (slopes: x horizontal, y vertical, z ignored) to a pixel of this image,
+     * correcting for lens distortion. Same semantics as Image.warp() in the V2 SDK.
+     *
+     * @return pixel coordinates (x, y, 0) or an invalid vector (NaN) when not available yet
+     */
+    public Vector warp(Vector ray) {
+        Vector p = controller == null ? null : controller.rectilinearToPixel(id, new Vector(ray.getX(), ray.getY(), 1));
+        return p == null ? new Vector(Float.NaN, Float.NaN, 0) : p;
+    }
+
+    /** Inverse of {@link #warp(Vector)}: pixel to ray slopes (x, y, 1). Same as Image.rectify() in V2. */
+    public Vector rectify(Vector pixel) {
+        Vector r = controller == null ? null : controller.pixelToRectilinear(id, pixel);
+        return r == null ? new Vector(Float.NaN, Float.NaN, 1) : r;
+    }
+
+    /**
+     * Projects a 3D tracking position (Leap coordinates, mm) onto this image.
+     * The ray slopes follow the V2 convention: horizontal = -(x + offset) / y, vertical = z / y,
+     * with offset = +cameraOffset for the left image and -cameraOffset for the right one.
+     *
+     * @return pixel coordinates (x, y, 0), NaN when the point is behind the camera or no image was received
+     */
+    public Vector project(Vector position) {
+        float y = position.getY();
+        if (y <= 1f) return new Vector(Float.NaN, Float.NaN, 0);
+        float offset = id == 0 ? cameraOffset : -cameraOffset;
+        float h = -(position.getX() + offset) / y;
+        float v = position.getZ() / y;
+        return warp(new Vector(h, v, 0));
     }
 
     public static Image invalid() { return INVALID; }

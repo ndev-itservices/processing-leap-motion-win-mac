@@ -120,6 +120,19 @@ static void build_images(struct _LEAP_CONNECTION* c) {
     c->imgEv.info.frame_id = c->frameId; c->imgEv.info.timestamp = now_us(); c->imgEv.calib = NULL;
 }
 
+/* Pinhole camera model for tests: 640x240 image, focal 135 px, principal point (320, 120).
+ * pixel = (cx + f * ray.x, cy + f * ray.y); the inverse for LeapPixelToRectilinear. Camera 1 = left, 2 = right. */
+LEAP_VECTOR LeapRectilinearToPixel(LEAP_CONNECTION c, eLeapPerspectiveType cam, LEAP_VECTOR r) {
+    LEAP_VECTOR p; (void)c;
+    if (cam != eLeapPerspectiveType_stereo_left && cam != eLeapPerspectiveType_stereo_right) { p.x = p.y = NAN; p.z = 1; return p; }
+    p.x = 320.0f + 135.0f * r.x; p.y = 120.0f + 135.0f * r.y; p.z = 1; return p;
+}
+LEAP_VECTOR LeapPixelToRectilinear(LEAP_CONNECTION c, eLeapPerspectiveType cam, LEAP_VECTOR px) {
+    LEAP_VECTOR r; (void)c;
+    if (cam != eLeapPerspectiveType_stereo_left && cam != eLeapPerspectiveType_stereo_right) { r.x = r.y = NAN; r.z = 1; return r; }
+    r.x = (px.x - 320.0f) / 135.0f; r.y = (px.y - 120.0f) / 135.0f; r.z = 1; return r;
+}
+
 eLeapRS LeapPollConnection(LEAP_CONNECTION c, uint32_t timeout, LEAP_CONNECTION_MESSAGE* msg) {
     (void)timeout;
     if (!c->open) { usleep(50000); return eLeapRS_NotConnected; }

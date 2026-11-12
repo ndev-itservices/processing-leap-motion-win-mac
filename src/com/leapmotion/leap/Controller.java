@@ -218,8 +218,8 @@ public class Controller {
         int w = (int) m[2], h = (int) m[3], bpp = (int) m[4];
         Image.FormatType fmt = m[5] == 0x49425247L ? Image.FormatType.IBRG : Image.FormatType.INFRARED;
         List<Image> l = new ArrayList<Image>(2);
-        l.add(new Image(true, 0, w, h, bpp, m[6], m[1], fmt, imgLeft.clone()));
-        if (copied > 1) l.add(new Image(true, 1, w, h, bpp, m[6], m[1], fmt, imgRight.clone()));
+        l.add(new Image(true, 0, w, h, bpp, m[6], m[1], fmt, imgLeft.clone(), this));
+        if (copied > 1) l.add(new Image(true, 1, w, h, bpp, m[6], m[1], fmt, imgRight.clone(), this));
         images = new ImageList(l);
     }
 
@@ -386,6 +386,32 @@ public class Controller {
         if (value instanceof Integer) return LeapJNI.nSaveConfig(handle, key, 2, false, (Integer) value, 0, null);
         if (value instanceof Number) return LeapJNI.nSaveConfig(handle, key, 3, false, 0, ((Number) value).floatValue(), null);
         return LeapJNI.nSaveConfig(handle, key, 4, false, 0, 0, String.valueOf(value));
+    }
+
+    /* ------------------------------------------------------ image mapping */
+
+    /**
+     * Maps a camera ray to a pixel of the raw image (LeapRectilinearToPixel).
+     *
+     * @param camera 0 = left image, 1 = right image
+     * @param ray    direction in camera coordinates: x along the image width, y along the image
+     *               height, z = 1 (slopes). See {@link Image#warp(Vector)} for the 3D convention.
+     * @return pixel (x, y, 0) or null when no image has been received yet
+     */
+    public Vector rectilinearToPixel(int camera, Vector ray) {
+        if (!opened || ray == null) return null;
+        float[] o = new float[2];
+        float z = ray.getZ() == 0 ? 1f : ray.getZ();
+        if (!LeapJNI.nRectilinearToPixel(handle, camera + 1, ray.getX() / z, ray.getY() / z, 1f, o)) return null;
+        return new Vector(o[0], o[1], 0);
+    }
+
+    /** Inverse of {@link #rectilinearToPixel(int, Vector)}: pixel to ray direction (x, y, 1). */
+    public Vector pixelToRectilinear(int camera, Vector pixel) {
+        if (!opened || pixel == null) return null;
+        float[] o = new float[2];
+        if (!LeapJNI.nPixelToRectilinear(handle, camera + 1, pixel.getX(), pixel.getY(), o)) return null;
+        return new Vector(o[0], o[1], 1);
     }
 
     /* ------------------------------------------------------------- version */

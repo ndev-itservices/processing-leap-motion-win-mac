@@ -97,6 +97,8 @@ typedef eLeapRS (*pf_GetDeviceList)(LEAP_CONNECTION, LEAP_DEVICE_REF*, uint32_t*
 typedef eLeapRS (*pf_SaveConfigValue)(LEAP_CONNECTION, const char*, const LEAP_VARIANT*, uint32_t*);
 typedef eLeapRS (*pf_GetVersion)(LEAP_CONNECTION, eLeapVersionPart, LEAP_VERSION*);
 typedef int64_t (*pf_GetNow)(void);
+typedef LEAP_VECTOR (*pf_RectilinearToPixel)(LEAP_CONNECTION, eLeapPerspectiveType, LEAP_VECTOR);
+typedef LEAP_VECTOR (*pf_PixelToRectilinear)(LEAP_CONNECTION, eLeapPerspectiveType, LEAP_VECTOR);
 
 typedef struct {
     pf_CreateConnection  CreateConnection;
@@ -116,6 +118,8 @@ typedef struct {
     pf_SaveConfigValue   SaveConfigValue;
     pf_GetVersion        GetVersion;     /* optional */
     pf_GetNow            GetNow;         /* optional */
+    pf_RectilinearToPixel RectilinearToPixel; /* optional */
+    pf_PixelToRectilinear PixelToRectilinear; /* optional */
 } LeapFns;
 
 /* ------------------------------------------------------------------------- */
@@ -451,6 +455,7 @@ static int load_leapc(LeapCtx* c, const char* path) {
     LOAD_SYM(SetPolicyFlags); LOAD_SYM(SetAllocator); LOAD_SYM(OpenDevice); LOAD_SYM(CloseDevice);
     LOAD_SYM(GetDeviceInfo); LOAD_SYM(GetDeviceList); LOAD_SYM(SaveConfigValue);
     LOAD_SYM_OPT(SetTrackingMode); LOAD_SYM_OPT(GetTrackingMode); LOAD_SYM_OPT(GetVersion); LOAD_SYM_OPT(GetNow);
+    LOAD_SYM_OPT(RectilinearToPixel); LOAD_SYM_OPT(PixelToRectilinear);
     return 0;
 }
 
@@ -751,7 +756,33 @@ JNIEXPORT jstring JNICALL Java_com_leapmotion_leap_LeapJNI_nLastLog(JNIEnv* env,
     return new_string(env, s);
 }
 
+/* camera: 1 = left, 2 = right (eLeapPerspectiveType). in: ray direction (x, y, 1). out2: pixel x, y. */
+JNIEXPORT jboolean JNICALL Java_com_leapmotion_leap_LeapJNI_nRectilinearToPixel(JNIEnv* env, jclass cls, jlong h, jint camera, jfloat x, jfloat y, jfloat z, jfloatArray out) {
+    (void)cls;
+    LeapCtx* c = ctx_of(h);
+    if (!c || !c->conn || !c->fn.RectilinearToPixel || !out || (*env)->GetArrayLength(env, out) < 2) return JNI_FALSE;
+    LEAP_VECTOR in; in.x = x; in.y = y; in.z = z;
+    LEAP_VECTOR r = c->fn.RectilinearToPixel(c->conn, (eLeapPerspectiveType)camera, in);
+    if (r.x != r.x || r.y != r.y) return JNI_FALSE; /* NaN: no images received yet */
+    float o[2] = { r.x, r.y };
+    (*env)->SetFloatArrayRegion(env, out, 0, 2, o);
+    return JNI_TRUE;
+}
+
+/* camera: 1 = left, 2 = right. in: pixel x, y. out: ray direction x, y (z is always 1). */
+JNIEXPORT jboolean JNICALL Java_com_leapmotion_leap_LeapJNI_nPixelToRectilinear(JNIEnv* env, jclass cls, jlong h, jint camera, jfloat px, jfloat py, jfloatArray out) {
+    (void)cls;
+    LeapCtx* c = ctx_of(h);
+    if (!c || !c->conn || !c->fn.PixelToRectilinear || !out || (*env)->GetArrayLength(env, out) < 2) return JNI_FALSE;
+    LEAP_VECTOR in; in.x = px; in.y = py; in.z = 0;
+    LEAP_VECTOR r = c->fn.PixelToRectilinear(c->conn, (eLeapPerspectiveType)camera, in);
+    if (r.x != r.x || r.y != r.y) return JNI_FALSE;
+    float o[2] = { r.x, r.y };
+    (*env)->SetFloatArrayRegion(env, out, 0, 2, o);
+    return JNI_TRUE;
+}
+
 JNIEXPORT jint JNICALL Java_com_leapmotion_leap_LeapJNI_nBridgeVersion(JNIEnv* env, jclass cls) {
     (void)env; (void)cls;
-    return 1;
+    return 2;
 }

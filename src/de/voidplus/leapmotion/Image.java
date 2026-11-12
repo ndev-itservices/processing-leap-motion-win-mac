@@ -3,6 +3,7 @@ package de.voidplus.leapmotion;
 import processing.core.PApplet;
 import processing.core.PConstants;
 import processing.core.PImage;
+import processing.core.PVector;
 
 
 public class Image extends PImage implements RawAccess<com.leapmotion.leap.Image> {
@@ -97,6 +98,41 @@ public class Image extends PImage implements RawAccess<com.leapmotion.leap.Image
      */
     public boolean isRight() {
         return this.getId() == 0;
+    }
+
+    /**
+     * Project a raw 3D position (millimetres, as returned by getRawPosition(), getRawPrevJoint(),
+     * ...) onto this camera image. Corrects for the lens distortion of the camera.
+     *
+     * @param rawPosition Position in Leap Motion coordinates (mm)
+     * @return Pixel coordinates in this image, or null if the point cannot be projected
+     * (behind the camera, or no image received yet)
+     */
+    public PVector project(PVector rawPosition) {
+        com.leapmotion.leap.Vector p = this._image.project(
+                new com.leapmotion.leap.Vector(rawPosition.x, rawPosition.y, rawPosition.z));
+        if (Float.isNaN(p.getX()) || Float.isNaN(p.getY())) {
+            return null;
+        }
+        return new PVector(p.getX(), p.getY());
+    }
+
+    /**
+     * Project a raw 3D position onto this image and scale the result to a drawn size.
+     *
+     * @param rawPosition Position in Leap Motion coordinates (mm)
+     * @param drawX       X where the image is drawn
+     * @param drawY       Y where the image is drawn
+     * @param drawWidth   Width the image is drawn with
+     * @param drawHeight  Height the image is drawn with
+     * @return Screen coordinates, or null if the point cannot be projected
+     */
+    public PVector project(PVector rawPosition, float drawX, float drawY, float drawWidth, float drawHeight) {
+        PVector p = this.project(rawPosition);
+        if (p == null) {
+            return null;
+        }
+        return new PVector(drawX + p.x * drawWidth / this.width, drawY + p.y * drawHeight / this.height);
     }
 
 }
