@@ -5,10 +5,11 @@
  * fingers to drop it. A dropped cube falls and lands on the floor or on top of another
  * cube. Both hands work at the same time.
  *
- * Keys:  r = reset the scene   n = add a cube
+ * Keys:  r = reset the scene   n = add a cube   + / - = raise / lower the table
  *
  * Coordinates are the raw Leap Motion millimetres: x right, y up (0 = device), z towards you.
- * The virtual table is 120 mm above the device, because hands closer than that are not tracked.
+ * The virtual table starts 200 mm above the device (the centre of the tracking zone); hands
+ * closer than about 100 mm to the device are not tracked.
  *
  * Leap Motion for Processing (Apple Silicon fork) - Tiago Martins
  */
@@ -18,7 +19,7 @@ import java.util.HashMap;
 LeapMotion leap;
 
 final float CUBE = 40;           // cube edge in mm
-final float FLOOR_Y = 120;       // height of the virtual table above the device (mm); hands cannot be tracked lower
+float FLOOR_Y = 200;             // height of the virtual table above the device (mm); keys + and - change it
 final float GRAB_RADIUS = 60;    // max distance between the pinch point and a cube centre to grab it
 final float PINCH_ON = 0.6;      // pinch strength to start holding
 final float PINCH_OFF = 0.3;     // pinch strength to release (hysteresis)
@@ -288,11 +289,20 @@ void drawHud() {
   for (Cube c : cubes) if (!c.held && c.resting) tallest = max(tallest, c.level() + 1);
   String status = leap.isConnected() ? "hands: " + leap.countHands() + "   fps: " + leap.getFrameRate() : "Leap Motion not connected";
   text("Pinch (thumb + index) a highlighted cube to pick it up, open the fingers to drop it.   r = reset   n = add cube", 16, 14);
-  text(status + "   cubes: " + cubes.size() + "   tallest stack: " + tallest, 16, 38);
+  text(status + "   cubes: " + cubes.size() + "   tallest stack: " + tallest + "   table height: " + int(FLOOR_Y) + " mm (+/-)", 16, 38);
   hint(ENABLE_DEPTH_TEST);
 }
 
 void keyPressed() {
   if (key == 'r' || key == 'R') resetScene();
   if (key == 'n' || key == 'N') addCube();
+  if (key == '+' || key == '=') moveTable(20);
+  if (key == '-' || key == '_') moveTable(-20);
+}
+
+void moveTable(float delta) {
+  float newY = constrain(FLOOR_Y + delta, 100, 400);
+  float d = newY - FLOOR_Y;
+  FLOOR_Y = newY;
+  for (Cube c : cubes) if (!c.held) c.pos.y += d;   // everything resting moves with the table
 }

@@ -99,6 +99,7 @@ typedef eLeapRS (*pf_GetVersion)(LEAP_CONNECTION, eLeapVersionPart, LEAP_VERSION
 typedef int64_t (*pf_GetNow)(void);
 typedef LEAP_VECTOR (*pf_RectilinearToPixel)(LEAP_CONNECTION, eLeapPerspectiveType, LEAP_VECTOR);
 typedef LEAP_VECTOR (*pf_PixelToRectilinear)(LEAP_CONNECTION, eLeapPerspectiveType, LEAP_VECTOR);
+typedef void (*pf_ExtrinsicCameraMatrix)(LEAP_CONNECTION, eLeapPerspectiveType, float*);
 
 typedef struct {
     pf_CreateConnection  CreateConnection;
@@ -120,6 +121,7 @@ typedef struct {
     pf_GetNow            GetNow;         /* optional */
     pf_RectilinearToPixel RectilinearToPixel; /* optional */
     pf_PixelToRectilinear PixelToRectilinear; /* optional */
+    pf_ExtrinsicCameraMatrix ExtrinsicCameraMatrix; /* optional */
 } LeapFns;
 
 /* ------------------------------------------------------------------------- */
@@ -455,7 +457,7 @@ static int load_leapc(LeapCtx* c, const char* path) {
     LOAD_SYM(SetPolicyFlags); LOAD_SYM(SetAllocator); LOAD_SYM(OpenDevice); LOAD_SYM(CloseDevice);
     LOAD_SYM(GetDeviceInfo); LOAD_SYM(GetDeviceList); LOAD_SYM(SaveConfigValue);
     LOAD_SYM_OPT(SetTrackingMode); LOAD_SYM_OPT(GetTrackingMode); LOAD_SYM_OPT(GetVersion); LOAD_SYM_OPT(GetNow);
-    LOAD_SYM_OPT(RectilinearToPixel); LOAD_SYM_OPT(PixelToRectilinear);
+    LOAD_SYM_OPT(RectilinearToPixel); LOAD_SYM_OPT(PixelToRectilinear); LOAD_SYM_OPT(ExtrinsicCameraMatrix);
     return 0;
 }
 
@@ -782,7 +784,20 @@ JNIEXPORT jboolean JNICALL Java_com_leapmotion_leap_LeapJNI_nPixelToRectilinear(
     return JNI_TRUE;
 }
 
+/* camera: 1 = left, 2 = right. out16: 4x4 camera-to-Leap transform, column major. */
+JNIEXPORT jboolean JNICALL Java_com_leapmotion_leap_LeapJNI_nExtrinsicCameraMatrix(JNIEnv* env, jclass cls, jlong h, jint camera, jfloatArray out) {
+    (void)cls;
+    LeapCtx* c = ctx_of(h);
+    if (!c || !c->conn || !c->fn.ExtrinsicCameraMatrix || !out || (*env)->GetArrayLength(env, out) < 16) return JNI_FALSE;
+    float m[16];
+    for (int i = 0; i < 16; i++) m[i] = 0.0f / 0.0f; /* NaN sentinel: unchanged means not available */
+    c->fn.ExtrinsicCameraMatrix(c->conn, (eLeapPerspectiveType)camera, m);
+    for (int i = 0; i < 16; i++) if (m[i] != m[i]) return JNI_FALSE;
+    (*env)->SetFloatArrayRegion(env, out, 0, 16, m);
+    return JNI_TRUE;
+}
+
 JNIEXPORT jint JNICALL Java_com_leapmotion_leap_LeapJNI_nBridgeVersion(JNIEnv* env, jclass cls) {
     (void)env; (void)cls;
-    return 2;
+    return 3;
 }

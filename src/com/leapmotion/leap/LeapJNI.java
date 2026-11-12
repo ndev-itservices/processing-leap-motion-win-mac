@@ -186,5 +186,8 @@ final class LeapJNI {
 
     static native boolean nPixelToRectilinear(long h, int camera, float px, float py, float[] out2);
 
+    /** camera: 1 left, 2 right. Fills out16 with the camera-to-Leap 4x4 transform (column major). */
+    static native boolean nExtrinsicCameraMatrix(long h, int camera, float[] out16);
+
     static native int nBridgeVersion();
 }

@@ -59,12 +59,25 @@ public class Image {
 
     /**
      * Projects a 3D tracking position (Leap coordinates, mm) onto this image.
-     * The ray slopes follow the V2 convention: horizontal = -(x + offset) / y, vertical = z / y,
-     * with offset = +cameraOffset for the left image and -cameraOffset for the right one.
+     * <p>
+     * When the service provides the camera's extrinsic matrix (Gemini 5.1+ / Hyperion), the point is
+     * transformed into the camera frame and the ray (x/z, y/z, 1) is passed to LeapRectilinearToPixel.
+     * Otherwise the V2 convention is used: horizontal = -(x + offset) / y, vertical = z / y, with
+     * offset = +cameraOffset for the left image and -cameraOffset for the right one.
      *
      * @return pixel coordinates (x, y, 0), NaN when the point is behind the camera or no image was received
      */
     public Vector project(Vector position) {
+        float[] m = controller == null ? null : controller.extrinsicCameraMatrix(id);
+        if (m != null) {
+            // inverse of the rigid camera-to-Leap transform: p_cam = R^T (p - t); columns of R are m[0..2], m[4..6], m[8..10]
+            float dx = position.getX() - m[12], dy = position.getY() - m[13], dz = position.getZ() - m[14];
+            float cx = m[0] * dx + m[1] * dy + m[2] * dz;
+            float cy = m[4] * dx + m[5] * dy + m[6] * dz;
+            float cz = m[8] * dx + m[9] * dy + m[10] * dz;
+            if (cz <= 1f) return new Vector(Float.NaN, Float.NaN, 0);
+            return warp(new Vector(cx / cz, cy / cz, 0));
+        }
         float y = position.getY();
         if (y <= 1f) return new Vector(Float.NaN, Float.NaN, 0);
         float offset = id == 0 ? cameraOffset : -cameraOffset;

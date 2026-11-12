@@ -117,6 +117,14 @@ public class BridgeTest {
             Vector pr = left.project(new Vector(-Image.cameraOffset, 200, 0));
             check(Math.abs(pr.getX() - 320f) < 1e-3 && Math.abs(pr.getY() - 120f) < 1e-3, "Image.project above left camera: " + pr);
             check(Float.isNaN(left.project(new Vector(0, 0, 0)).getX()), "Image.project behind camera is NaN");
+            float[] ex = c.extrinsicCameraMatrix(0);
+            check(ex != null && ex[12] == -20f && ex[0] == -1f, "extrinsic matrix (left camera at x = -20)");
+            // 100 mm to the right of the left camera, 200 mm up: camera x = -100 -> ray x = -0.5 -> pixel 320 - 67.5
+            Vector pr2 = left.project(new Vector(80, 200, 0));
+            check(Math.abs(pr2.getX() - 252.5f) < 1e-2 && Math.abs(pr2.getY() - 120f) < 1e-2, "Image.project via extrinsic matrix: " + pr2);
+            // 50 mm towards the user (+z): camera y = +50 -> ray y = 0.25 -> pixel y = 120 + 33.75
+            Vector pr3 = c.images().get(1).project(new Vector(20, 200, 50));
+            check(Math.abs(pr3.getX() - 320f) < 1e-2 && Math.abs(pr3.getY() - 153.75f) < 1e-2, "right image project: " + pr3);
         }
 
         System.out.println("== gestures (circle drawn by the mock)");

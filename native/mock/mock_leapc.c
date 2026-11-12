@@ -133,6 +133,16 @@ LEAP_VECTOR LeapPixelToRectilinear(LEAP_CONNECTION c, eLeapPerspectiveType cam, 
     r.x = (px.x - 320.0f) / 135.0f; r.y = (px.y - 120.0f) / 135.0f; r.z = 1; return r;
 }
 
+/* Camera-to-Leap transform (column major) for the mock: camera z = Leap +y (looking up),
+ * camera x = Leap -x (raw images are mirrored), camera y = Leap +z, camera at x = -20 (left) / +20 (right). */
+void LeapExtrinsicCameraMatrix(LEAP_CONNECTION c, eLeapPerspectiveType cam, float* m) {
+    (void)c;
+    if (cam != eLeapPerspectiveType_stereo_left && cam != eLeapPerspectiveType_stereo_right) return;
+    float t = cam == eLeapPerspectiveType_stereo_left ? -20.0f : 20.0f;
+    float v[16] = { -1, 0, 0, 0,   0, 0, 1, 0,   0, 1, 0, 0,   t, 0, 0, 1 };
+    memcpy(m, v, sizeof v);
+}
+
 eLeapRS LeapPollConnection(LEAP_CONNECTION c, uint32_t timeout, LEAP_CONNECTION_MESSAGE* msg) {
     (void)timeout;
     if (!c->open) { usleep(50000); return eLeapRS_NotConnected; }

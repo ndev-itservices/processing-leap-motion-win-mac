@@ -414,6 +414,18 @@ public class Controller {
         return new Vector(o[0], o[1], 1);
     }
 
+    /**
+     * Camera-to-Leap rigid transform of a camera (LeapExtrinsicCameraMatrix): 4x4, column major,
+     * [R t; 0 1]. Returns null when the service does not provide it (older Gemini versions).
+     *
+     * @param camera 0 = left, 1 = right
+     */
+    public float[] extrinsicCameraMatrix(int camera) {
+        if (!opened) return null;
+        float[] m = new float[16];
+        return LeapJNI.nExtrinsicCameraMatrix(handle, camera + 1, m) ? m : null;
+    }
+
     /* ------------------------------------------------------------- version */
 
     /** Version of the LeapC client library, e.g. "6.2.0", or "" when unavailable. */
