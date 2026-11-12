@@ -41,7 +41,7 @@ public class Controller {
         }
     }
 
-    public static final String VERSION = "4.0.0";
+    public static final String VERSION = "4.0.1";
     private static final int HISTORY = 120;
     private static final long NATIVE_MASK = 0x1FF;
 
@@ -95,9 +95,22 @@ public class Controller {
                 }
             }
         }
+        if (opened) {
+            // Desktop tracking mode by default (device on the table, as the V2 SDK assumed). A service
+            // left in HMD or screen-top mode reports hands mirrored, e.g. a right hand labelled left.
+            // Override with -Dleap.trackingMode=desktop|hmd|screentop|keep
+            String tm = System.getProperty("leap.trackingMode", "desktop").toLowerCase();
+            if (tm.equals("hmd")) setTrackingMode(TRACKING_MODE_HMD);
+            else if (tm.equals("screentop")) setTrackingMode(TRACKING_MODE_SCREENTOP);
+            else if (!tm.equals("keep")) setTrackingMode(TRACKING_MODE_DESKTOP);
+        }
         if (listener != null) addListener(listener);
         if (opened) start();
     }
+
+    public static final int TRACKING_MODE_DESKTOP = 0;
+    public static final int TRACKING_MODE_HMD = 1;
+    public static final int TRACKING_MODE_SCREENTOP = 2;
 
     /* ------------------------------------------------------------- thread */
 
@@ -336,11 +349,14 @@ public class Controller {
     public void setPolicy(PolicyFlag flag) {
         if (!opened || flag == null) return;
         LeapJNI.nSetPolicy(handle, flag.swigValue() & NATIVE_MASK, 0);
+        if (flag == PolicyFlag.POLICY_OPTIMIZE_HMD) setTrackingMode(TRACKING_MODE_HMD);
+        else if (flag == PolicyFlag.POLICY_OPTIMIZE_SCREENTOP) setTrackingMode(TRACKING_MODE_SCREENTOP);
     }
 
     public void clearPolicy(PolicyFlag flag) {
         if (!opened || flag == null) return;
         LeapJNI.nSetPolicy(handle, 0, flag.swigValue() & NATIVE_MASK);
+        if (flag == PolicyFlag.POLICY_OPTIMIZE_HMD || flag == PolicyFlag.POLICY_OPTIMIZE_SCREENTOP) setTrackingMode(TRACKING_MODE_DESKTOP);
     }
 
     public boolean isPolicySet(PolicyFlag flag) {
@@ -363,7 +379,7 @@ public class Controller {
         return PolicyFlag.swigToEnum((int) f);
     }
 
-    /** 0 desktop, 1 head mounted, 2 screen top. */
+    /** 0 desktop, 1 head mounted, 2 screen top. Applied now and again after every reconnection. */
     public void setTrackingMode(int mode) {
         if (opened) LeapJNI.nSetTrackingMode(handle, mode);
     }

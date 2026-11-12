@@ -54,6 +54,7 @@ public class BridgeTest {
         check(events[2] >= 1, "onConnect fired");
         check(events[4] >= 1, "onDeviceChange fired");
         check("6.2.0".equals(c.clientVersion()), "client version via LeapGetVersion: " + c.clientVersion());
+        check(c.trackingMode() == Controller.TRACKING_MODE_DESKTOP, "desktop tracking mode requested at connection (service started in HMD): " + c.trackingMode());
 
         System.out.println("== device");
         check(c.devices().count() == 1, "one device");

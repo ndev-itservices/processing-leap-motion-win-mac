@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.0.1 (2026-11-12)
+
+- Request the desktop tracking mode when connecting (a service left in HMD or screen-top mode
+  labels a right hand as left); `allowHdm()` now switches the service to HMD mode.
+
 ## 4.0.0 (2026-11-12)
 
 Fork of "Leap Motion for Processing" 2.3.1.6 by Darius Morawiec, by Tiago Martins.

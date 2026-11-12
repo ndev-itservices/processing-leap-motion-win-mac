@@ -25,7 +25,7 @@ public class LeapMotion {
 
     private static final String NAME = "Leap Motion";
     private static final String REPO = "https://github.com/nok/leap-motion-processing";
-    private static final String VERSION = "4.0.0";
+    private static final String VERSION = "4.0.1";
     private static final String SDK_VERSION = "Ultraleap LeapC (Gemini 5 / Hyperion 6)";
 
     // Processing

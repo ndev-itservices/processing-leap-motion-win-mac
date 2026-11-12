@@ -215,7 +215,8 @@ typedef struct {
     uint64_t  policyDesired;
     uint64_t  policyApplied;   /* what we last told the service (set/clear are sent as deltas only) */
     int       policyPending;
-    int       trackingMode;
+    int       trackingMode;          /* current mode reported by the service (-1 unknown) */
+    int       trackingModeDesired;   /* mode requested by the client, applied on (re)connect (-1 none) */
 
     /* tracking frame cache */
     int64_t   frameId;
@@ -394,6 +395,8 @@ static LJ_THREAD_RET poll_thread(void* arg) {
                 c->connected = 1;
                 c->pending |= LJ_EV_CONNECTION;
                 apply_policy_locked(c);
+                if (c->trackingModeDesired >= 0 && c->fn.SetTrackingMode)
+                    c->fn.SetTrackingMode(c->conn, (eLeapTrackingMode)c->trackingModeDesired);
                 lj_unlock(&c->mu);
                 break;
             case eLeapEventType_ConnectionLost:
@@ -557,6 +560,7 @@ JNIEXPORT jlong JNICALL Java_com_leapmotion_leap_LeapJNI_nCreate(JNIEnv* env, jc
     c->allocator.deallocate = lj_free;
     c->allocator.state = NULL;
     c->trackingMode = -1;
+    c->trackingModeDesired = -1;
     return (jlong)(intptr_t)c;
 }
 
@@ -764,7 +768,9 @@ JNIEXPORT jint JNICALL Java_com_leapmotion_leap_LeapJNI_nReadImages(JNIEnv* env,
 JNIEXPORT jint JNICALL Java_com_leapmotion_leap_LeapJNI_nSetTrackingMode(JNIEnv* env, jclass cls, jlong h, jint mode) {
     (void)env; (void)cls;
     LeapCtx* c = ctx_of(h);
-    if (!c || !c->conn || !c->fn.SetTrackingMode) return -1;
+    if (!c) return -1;
+    c->trackingModeDesired = mode;   /* re-applied every time the connection is (re)established */
+    if (!c->conn || !c->connected || !c->fn.SetTrackingMode) return 0;
     return (jint)c->fn.SetTrackingMode(c->conn, (eLeapTrackingMode)mode);
 }
 

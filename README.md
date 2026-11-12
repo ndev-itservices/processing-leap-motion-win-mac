@@ -22,7 +22,7 @@ so old sketches keep working.
 ### 1. Download
 
 Go to the [Releases page](../../releases/latest) and, under **Assets**, download the file
-**LeapMotionForProcessing-4.0.0.zip** (the number is the version; take the newest). Unzip it:
+**LeapMotionForProcessing-4.0.1.zip** (the number is the version; take the newest). Unzip it:
 you get a folder called `LeapMotionForProcessing`.
 
 ### 2. Install the driver
