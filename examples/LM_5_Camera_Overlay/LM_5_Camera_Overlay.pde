@@ -12,6 +12,7 @@
  *
  * Keys:  1 = left camera   2 = right camera   b = both   s = toggle skeleton
  *        m = mirror horizontally   v = flip vertically
+ *        p = cycle the 3D-to-pixel projection mode   d = print debug info to the console
  *
  * Leap Motion for Processing (Apple Silicon fork) - Tiago Martins
  */
@@ -22,6 +23,7 @@ int view = 0;            // 0 = left camera, 1 = right camera, 2 = both
 boolean showSkeleton = true;
 boolean mirror = true;   // mirror horizontally (natural "looking down" view)
 boolean flipV = true;    // flip vertically (fingers pointing away from you appear at the top)
+int projectionMode = 0;  // com.leapmotion.leap.Image.MODE_* (key p)
 
 color boneColor = color(0, 255, 160);
 color jointColor = color(255, 200, 0);
@@ -65,6 +67,8 @@ void draw() {
   textAlign(LEFT, TOP);
   text("1 = left   2 = right   b = both   s = skeleton   m = mirror (" + (mirror ? "on" : "off") + ")   v = flip ("
     + (flipV ? "on" : "off") + ")     hands: " + leap.countHands() + "   " + leap.getFrameRate() + " fps", 12, 10);
+  text("p = projection mode " + projectionMode + ": " + com.leapmotion.leap.Image.projectionModeName(projectionMode)
+    + "     d = print debug info", 12, 30);
 }
 
 // image pixel -> screen, honouring the mirror / flip settings
@@ -142,4 +146,42 @@ void keyPressed() {
   if (key == 's' || key == 'S') showSkeleton = !showSkeleton;
   if (key == 'm' || key == 'M') mirror = !mirror;
   if (key == 'v' || key == 'V') flipV = !flipV;
+  if (key == 'p' || key == 'P') {
+    projectionMode = (projectionMode + 1) % 6;
+    com.leapmotion.leap.Image.projectionMode = projectionMode;
+    println("projection mode " + projectionMode + ": " + com.leapmotion.leap.Image.projectionModeName(projectionMode));
+  }
+  if (key == 'd' || key == 'D') printDebug();
+}
+
+void printDebug() {
+  com.leapmotion.leap.Controller c = leap.getController();
+  println("---- LM_5 debug ----");
+  println("service " + c.serviceVersion() + "  client " + c.clientVersion());
+  for (int cam = 0; cam < 2; cam++) {
+    float[] m = c.extrinsicCameraMatrix(cam);
+    if (m == null) { println("camera " + cam + ": no extrinsic matrix"); continue; }
+    println("camera " + cam + " extrinsic (column major):");
+    for (int r = 0; r < 4; r++) println("   " + nf(m[r], 0, 4) + "  " + nf(m[4 + r], 0, 4) + "  " + nf(m[8 + r], 0, 4) + "  " + nf(m[12 + r], 0, 4));
+  }
+  ArrayList<Image> images = leap.getImages();
+  for (Image img : images) {
+    println("image " + img.getId() + ": " + img.width + "x" + img.height);
+    com.leapmotion.leap.Image raw = img.getRaw();
+    com.leapmotion.leap.Vector centre = raw.rectify(new com.leapmotion.leap.Vector(img.width / 2, img.height / 2, 0));
+    println("   ray at image centre: " + centre);
+    com.leapmotion.leap.Vector p0 = raw.warp(new com.leapmotion.leap.Vector(0, 0, 0));
+    println("   pixel of ray (0,0,1): " + p0);
+    for (int mode = 0; mode < 6; mode++) {
+      com.leapmotion.leap.Vector t = new com.leapmotion.leap.Vector(0, 200, 0);
+      println("   mode " + mode + " point (0,200,0) -> " + raw.project(t, mode) + "   point (50,200,0) -> "
+        + raw.project(new com.leapmotion.leap.Vector(50, 200, 0), mode) + "   point (0,200,50) -> "
+        + raw.project(new com.leapmotion.leap.Vector(0, 200, 50), mode));
+    }
+  }
+  for (Hand hand : leap.getHands()) {
+    PVector palm = hand.getRawPosition();
+    println("hand " + (hand.isLeft() ? "left" : "right") + " palm raw " + palm);
+    for (Image img : images) println("   palm on image " + img.getId() + ": " + img.project(palm));
+  }
 }

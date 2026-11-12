@@ -68,21 +68,70 @@ public class Image {
      * @return pixel coordinates (x, y, 0), NaN when the point is behind the camera or no image was received
      */
     public Vector project(Vector position) {
-        float[] m = controller == null ? null : controller.extrinsicCameraMatrix(id);
-        if (m != null) {
-            // inverse of the rigid camera-to-Leap transform: p_cam = R^T (p - t); columns of R are m[0..2], m[4..6], m[8..10]
-            float dx = position.getX() - m[12], dy = position.getY() - m[13], dz = position.getZ() - m[14];
-            float cx = m[0] * dx + m[1] * dy + m[2] * dz;
-            float cy = m[4] * dx + m[5] * dy + m[6] * dz;
-            float cz = m[8] * dx + m[9] * dy + m[10] * dz;
-            if (cz <= 1f) return new Vector(Float.NaN, Float.NaN, 0);
-            return warp(new Vector(cx / cz, cy / cz, 0));
+        return project(position, projectionMode);
+    }
+
+    /** Projection mode used by {@link #project(Vector)}: one of the MODE_* constants (default MODE_EXTRINSIC). */
+    public static int projectionMode = 0;
+
+    /** Extrinsic matrix read as camera-to-Leap (documented): p_cam = R^T (p - t). */
+    public static final int MODE_EXTRINSIC = 0;
+    /** Extrinsic matrix read as Leap-to-camera: p_cam = R p + t. */
+    public static final int MODE_EXTRINSIC_INVERSE = 1;
+    /** V2 formula: horizontal = -(x + offset) / y, vertical = z / y. */
+    public static final int MODE_V2 = 2;
+    /** V2 formula with the horizontal sign flipped. */
+    public static final int MODE_V2_FLIP_H = 3;
+    /** V2 formula with the vertical sign flipped. */
+    public static final int MODE_V2_FLIP_V = 4;
+    /** V2 formula with both signs flipped. */
+    public static final int MODE_V2_FLIP_HV = 5;
+
+    public static String projectionModeName(int mode) {
+        switch (mode) {
+            case MODE_EXTRINSIC: return "extrinsic (camera to Leap)";
+            case MODE_EXTRINSIC_INVERSE: return "extrinsic inverse (Leap to camera)";
+            case MODE_V2: return "V2 slopes -(x+o)/y, z/y";
+            case MODE_V2_FLIP_H: return "V2 slopes (x+o)/y, z/y";
+            case MODE_V2_FLIP_V: return "V2 slopes -(x+o)/y, -z/y";
+            case MODE_V2_FLIP_HV: return "V2 slopes (x+o)/y, -z/y";
+            default: return "unknown";
+        }
+    }
+
+    /** Same as {@link #project(Vector)} with an explicit projection mode (see MODE_* constants). */
+    public Vector project(Vector position, int mode) {
+        Vector nan = new Vector(Float.NaN, Float.NaN, 0);
+        if (mode == MODE_EXTRINSIC || mode == MODE_EXTRINSIC_INVERSE) {
+            float[] m = controller == null ? null : controller.extrinsicCameraMatrix(id);
+            if (m == null) {
+                mode = MODE_V2;
+            } else {
+                float cx, cy, cz;
+                if (mode == MODE_EXTRINSIC) {
+                    // p_cam = R^T (p - t); columns of R are m[0..2], m[4..6], m[8..10], t = m[12..14]
+                    float dx = position.getX() - m[12], dy = position.getY() - m[13], dz = position.getZ() - m[14];
+                    cx = m[0] * dx + m[1] * dy + m[2] * dz;
+                    cy = m[4] * dx + m[5] * dy + m[6] * dz;
+                    cz = m[8] * dx + m[9] * dy + m[10] * dz;
+                } else {
+                    // p_cam = R p + t
+                    float x = position.getX(), y = position.getY(), z = position.getZ();
+                    cx = m[0] * x + m[4] * y + m[8] * z + m[12];
+                    cy = m[1] * x + m[5] * y + m[9] * z + m[13];
+                    cz = m[2] * x + m[6] * y + m[10] * z + m[14];
+                }
+                if (cz <= 1f) return nan;
+                return warp(new Vector(cx / cz, cy / cz, 0));
+            }
         }
         float y = position.getY();
-        if (y <= 1f) return new Vector(Float.NaN, Float.NaN, 0);
+        if (y <= 1f) return nan;
         float offset = id == 0 ? cameraOffset : -cameraOffset;
         float h = -(position.getX() + offset) / y;
         float v = position.getZ() / y;
+        if (mode == MODE_V2_FLIP_H || mode == MODE_V2_FLIP_HV) h = -h;
+        if (mode == MODE_V2_FLIP_V || mode == MODE_V2_FLIP_HV) v = -v;
         return warp(new Vector(h, v, 0));
     }
 
