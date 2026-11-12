@@ -21,22 +21,37 @@ Download **LeapMotionForProcessing.zip** from the
 [Releases page](../../releases/latest) and unzip it. You get a folder called
 `LeapMotionForProcessing`.
 
-### 2. Install (double-click)
+### 2. Install
 
-Plug the Leap Motion into a USB port, open the `install` folder inside the unzipped folder and
-double-click:
+Plug the Leap Motion into a USB port of the computer. Then:
 
-| | |
-|---|---|
-| **macOS** | `Install Leap Motion for Processing (macOS).command` |
-| **Windows** | `Install Leap Motion for Processing (Windows).bat` |
+**On a Mac**
 
-The installer does two things: it installs the **Leap Motion driver** (the official Ultraleap
-software, downloaded from Ultraleap's website; your computer asks for your password once) and
-it copies the **library** into your Processing sketchbook. At the end it opens Processing with
-the test example.
+1. Open the folder `LeapMotionForProcessing` that you unzipped, then the folder `install` inside it.
+2. Right-click the file **`Install Leap Motion for Processing (macOS).command`** and choose **Open**
+   (the first time, macOS asks "are you sure?": click **Open** again). A Terminal window appears
+   and guides you.
+3. If the Leap Motion driver is not installed yet, the window downloads it (about 480 MB) and the
+   official Ultraleap installer opens. Click **Continue** until the end; macOS asks for your Mac
+   password once. When it says "The installation was successful", close it and go back to the
+   Terminal window.
+4. The window copies the library into Processing and opens the test example. Press Enter to close it.
 
-*macOS: if the file does not open on double-click, right-click it and choose "Open".*
+**On Windows**
+
+1. Open the folder `LeapMotionForProcessing` that you unzipped, then the folder `install` inside it.
+2. Double-click **`Install Leap Motion for Processing (Windows).bat`**. If Windows shows "Windows
+   protected your PC", click **More info** and then **Run anyway**. A black window appears and guides you.
+3. If the Leap Motion driver is not installed yet, the window downloads it (about 400 MB) and the
+   official Ultraleap installer opens. Click **Next** until the end and accept the administrator
+   prompt. Close it and go back to the black window.
+4. The window copies the library into Processing. Press any key to close it.
+
+The installer only does two things: it installs the **Leap Motion driver** (the official
+Ultraleap Hand Tracking software, downloaded from Ultraleap's own website) and it copies the
+**library** into the `libraries` folder of your Processing sketchbook. You can also do both by
+hand: see [What you need](#what-you-need) for the driver links, and copy the
+`LeapMotionForProcessing` folder into `Documents/Processing/libraries`.
 
 ### 3. Try it
 
