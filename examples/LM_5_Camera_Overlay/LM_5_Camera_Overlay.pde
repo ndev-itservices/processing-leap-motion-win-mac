@@ -6,9 +6,9 @@
  * Image.project(), which uses the camera calibration of the device
  * (lens distortion included), so the drawing matches the real hand in the picture.
  *
- * The cameras look upwards, so the raw image is mirrored compared with what you see when
- * you look down at your hands. By default the image is mirrored back (key m toggles it,
- * key v flips it vertically).
+ * The cameras look upwards, so the raw image is mirrored and upside down compared with what
+ * you see when you look down at your hands. By default the image is mirrored and flipped back
+ * (key m toggles the mirror, key v the vertical flip); the skeleton follows the same transform.
  *
  * Keys:  1 = left camera   2 = right camera   b = both   s = toggle skeleton
  *        m = mirror horizontally   v = flip vertically
@@ -21,7 +21,7 @@ LeapMotion leap;
 int view = 0;            // 0 = left camera, 1 = right camera, 2 = both
 boolean showSkeleton = true;
 boolean mirror = true;   // mirror horizontally (natural "looking down" view)
-boolean flipV = false;   // flip vertically
+boolean flipV = true;    // flip vertically (fingers pointing away from you appear at the top)
 
 color boneColor = color(0, 255, 160);
 color jointColor = color(255, 200, 0);
