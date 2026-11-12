@@ -236,6 +236,7 @@ void drawPanel() {
   // current tool preview
   float py = height - FOOTER_H - 60;
   fill(200);
+  textAlign(LEFT, TOP);   // the buttons above use centred text
   text("Current", 14, py - 20);
   noStroke();
   fill(shapes[shapeIndex].equals("eraser") ? color(245) : palette[colorIndex]);
