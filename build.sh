@@ -67,7 +67,7 @@ cp build/LeapJava.jar build/LeapMotionForProcessing.jar "$D/library/"
 FOUND=0
 for v in macos-aarch64 macos-x86_64 windows-amd64 linux-amd64 linux-aarch64 linux-armv6hf; do
   if [ -d "native/build/$v" ]; then
-    mkdir -p "$D/library/$v"; cp native/build/$v/* "$D/library/$v/"; FOUND=$((FOUND+1))
+    mkdir -p "$D/library/$v"; cp native/build/$v/*.dylib native/build/$v/*.so native/build/$v/*.dll "$D/library/$v/" 2>/dev/null || true; FOUND=$((FOUND+1))
     echo "   native: $v"
   fi
 done
