@@ -58,7 +58,7 @@ LEAP_EXPORT eLeapRS LEAP_CALL LeapCreateConnection(const LEAP_CONNECTION_CONFIG*
     return eLeapRS_Success;
 }
 LEAP_EXPORT eLeapRS LEAP_CALL LeapSetAllocator(LEAP_CONNECTION c, const LEAP_ALLOCATOR* a) { c->alloc = *a; c->haveAlloc = 1; return eLeapRS_Success; }
-LEAP_EXPORT eLeapRS LEAP_CALL LeapOpenConnection(LEAP_CONNECTION c) { c->open = 1; c->step = 0; return eLeapRS_Success; }
+LEAP_EXPORT eLeapRS LEAP_CALL LeapOpenConnection(LEAP_CONNECTION c) { c->open = 1; c->step = 0; c->tracking_mode = (int)eLeapTrackingMode_HMD; c->modeDirty = 0; return eLeapRS_Success; } /* the service starts in HMD mode */
 LEAP_EXPORT void LEAP_CALL LeapCloseConnection(LEAP_CONNECTION c) { c->open = 0; }
 LEAP_EXPORT void LEAP_CALL LeapDestroyConnection(LEAP_CONNECTION c) {
     for (int i = 0; i < 2; i++) if (c->imgBuf[i]) { if (c->haveAlloc) c->alloc.deallocate(c->imgBuf[i], c->alloc.state); else free(c->imgBuf[i]); }
@@ -163,7 +163,7 @@ LEAP_EXPORT eLeapRS LEAP_CALL LeapPollConnection(LEAP_CONNECTION c, uint32_t tim
     int s = c->step++;
     if (s == 0) { msg->type = eLeapEventType_Connection; c->connEv.flags = 0; msg->connection_event = &c->connEv; return eLeapRS_Success; }
     if (s == 1) { msg->type = eLeapEventType_Device; c->devEv.flags = 0; c->devEv.device.handle = &g_dev; c->devEv.device.id = 1; c->devEv.status = eLeapDeviceStatus_Streaming; msg->device_event = &c->devEv; return eLeapRS_Success; }
-    if (s == 2) { msg->type = eLeapEventType_TrackingMode; c->tmEv.current_tracking_mode = eLeapTrackingMode_HMD; c->tracking_mode = 1; msg->tracking_mode_event = &c->tmEv; return eLeapRS_Success; } /* the service starts in HMD mode: the client must switch it to desktop */
+    if (s == 2) { msg->type = eLeapEventType_TrackingMode; c->tmEv.current_tracking_mode = (eLeapTrackingMode)c->tracking_mode; c->modeDirty = 0; msg->tracking_mode_event = &c->tmEv; return eLeapRS_Success; } /* reports the current mode, whatever the client asked for so far */
     if (c->modeDirty) { c->modeDirty = 0; msg->type = eLeapEventType_TrackingMode; c->tmEv.current_tracking_mode = (eLeapTrackingMode)c->tracking_mode; msg->tracking_mode_event = &c->tmEv; return eLeapRS_Success; }
     if (c->policyDirty) { c->policyDirty = 0; msg->type = eLeapEventType_Policy; c->polEv.current_policy = (uint32_t)c->policy; msg->policy_event = &c->polEv; return eLeapRS_Success; }
     mock_sleep_ms(10); /* 100 fps */
