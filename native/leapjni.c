@@ -17,20 +17,81 @@
  */
 
 #include <jni.h>
-#include <dlfcn.h>
-#include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdbool.h>
-#include <unistd.h>
 #include <time.h>
 #include <errno.h>
-#include <sys/time.h>
 
 #include "LeapC.h"
+
+/* ------------------------------------------------------------------------- */
+/* Portability layer: dynamic loading, threads, mutex/condvar, sleep, clock  */
+
+#ifdef _WIN32
+#  define WIN32_LEAN_AND_MEAN
+#  include <windows.h>
+typedef HMODULE lj_dl_t;
+typedef HANDLE lj_thread_t;
+typedef CRITICAL_SECTION lj_mutex_t;
+typedef CONDITION_VARIABLE lj_cond_t;
+static lj_dl_t lj_dlopen(const char* p) { return LoadLibraryA(p); }
+static void* lj_dlsym(lj_dl_t h, const char* n) { return (void*)GetProcAddress(h, n); }
+static const char* lj_dlerror(void) { static char b[64]; snprintf(b, sizeof b, "LoadLibrary error %lu", (unsigned long)GetLastError()); return b; }
+static void lj_mutex_init(lj_mutex_t* m) { InitializeCriticalSection(m); }
+static void lj_mutex_destroy(lj_mutex_t* m) { DeleteCriticalSection(m); }
+static void lj_lock(lj_mutex_t* m) { EnterCriticalSection(m); }
+static void lj_unlock(lj_mutex_t* m) { LeaveCriticalSection(m); }
+static void lj_cond_init(lj_cond_t* c) { InitializeConditionVariable(c); }
+static void lj_cond_destroy(lj_cond_t* c) { (void)c; }
+static void lj_cond_broadcast(lj_cond_t* c) { WakeAllConditionVariable(c); }
+static void lj_cond_timedwait_ms(lj_cond_t* c, lj_mutex_t* m, int ms) { SleepConditionVariableCS(c, m, (DWORD)ms); }
+static void lj_sleep_ms(int ms) { Sleep((DWORD)ms); }
+static int64_t lj_now_us(void) { FILETIME ft; GetSystemTimeAsFileTime(&ft); ULARGE_INTEGER u; u.LowPart = ft.dwLowDateTime; u.HighPart = ft.dwHighDateTime; return (int64_t)(u.QuadPart / 10); }
+typedef DWORD (WINAPI *lj_thread_fn)(LPVOID);
+static int lj_thread_create(lj_thread_t* t, lj_thread_fn fn, void* arg) { *t = CreateThread(NULL, 0, fn, arg, 0, NULL); return *t ? 0 : -1; }
+static void lj_thread_join(lj_thread_t t) { WaitForSingleObject(t, INFINITE); CloseHandle(t); }
+#  define LJ_THREAD_RET DWORD WINAPI
+#  define LJ_THREAD_RETURN return 0
+#  define LJ_PATHSEP "\\"
+#else
+#  include <dlfcn.h>
+#  include <pthread.h>
+#  include <unistd.h>
+#  include <sys/time.h>
+typedef void* lj_dl_t;
+typedef pthread_t lj_thread_t;
+typedef pthread_mutex_t lj_mutex_t;
+typedef pthread_cond_t lj_cond_t;
+static lj_dl_t lj_dlopen(const char* p) { return dlopen(p, RTLD_NOW | RTLD_LOCAL); }
+static void* lj_dlsym(lj_dl_t h, const char* n) { return dlsym(h, n); }
+static const char* lj_dlerror(void) { const char* e = dlerror(); return e ? e : "unknown"; }
+static void lj_mutex_init(lj_mutex_t* m) { pthread_mutex_init(m, NULL); }
+static void lj_mutex_destroy(lj_mutex_t* m) { pthread_mutex_destroy(m); }
+static void lj_lock(lj_mutex_t* m) { pthread_mutex_lock(m); }
+static void lj_unlock(lj_mutex_t* m) { pthread_mutex_unlock(m); }
+static void lj_cond_init(lj_cond_t* c) { pthread_cond_init(c, NULL); }
+static void lj_cond_destroy(lj_cond_t* c) { pthread_cond_destroy(c); }
+static void lj_cond_broadcast(lj_cond_t* c) { pthread_cond_broadcast(c); }
+static void lj_cond_timedwait_ms(lj_cond_t* c, lj_mutex_t* m, int ms) {
+    struct timeval now; gettimeofday(&now, NULL);
+    struct timespec ts;
+    int64_t ns = (int64_t)now.tv_usec * 1000 + (int64_t)ms * 1000000;
+    ts.tv_sec = now.tv_sec + ns / 1000000000; ts.tv_nsec = ns % 1000000000;
+    pthread_cond_timedwait(c, m, &ts);
+}
+static void lj_sleep_ms(int ms) { usleep((useconds_t)ms * 1000); }
+static int64_t lj_now_us(void) { struct timeval tv; gettimeofday(&tv, NULL); return (int64_t)tv.tv_sec * 1000000 + tv.tv_usec; }
+typedef void* (*lj_thread_fn)(void*);
+static int lj_thread_create(lj_thread_t* t, lj_thread_fn fn, void* arg) { return pthread_create(t, NULL, fn, arg); }
+static void lj_thread_join(lj_thread_t t) { pthread_join(t, NULL); }
+#  define LJ_THREAD_RET void*
+#  define LJ_THREAD_RETURN return NULL
+#  define LJ_PATHSEP "/"
+#endif
 
 /* ------------------------------------------------------------------------- */
 /* Layout shared with Java (keep in sync with com.leapmotion.leap.LeapJNI)   */
@@ -80,26 +141,26 @@
 /* ------------------------------------------------------------------------- */
 /* LeapC function table (resolved with dlsym)                                */
 
-typedef eLeapRS (*pf_CreateConnection)(const LEAP_CONNECTION_CONFIG*, LEAP_CONNECTION*);
-typedef eLeapRS (*pf_OpenConnection)(LEAP_CONNECTION);
+typedef eLeapRS (LEAP_CALL *pf_CreateConnection)(const LEAP_CONNECTION_CONFIG*, LEAP_CONNECTION*);
+typedef eLeapRS (LEAP_CALL *pf_OpenConnection)(LEAP_CONNECTION);
 typedef void    (*pf_CloseConnection)(LEAP_CONNECTION);
 typedef void    (*pf_DestroyConnection)(LEAP_CONNECTION);
-typedef eLeapRS (*pf_PollConnection)(LEAP_CONNECTION, uint32_t, LEAP_CONNECTION_MESSAGE*);
-typedef eLeapRS (*pf_GetConnectionInfo)(LEAP_CONNECTION, LEAP_CONNECTION_INFO*);
-typedef eLeapRS (*pf_SetPolicyFlags)(LEAP_CONNECTION, uint64_t, uint64_t);
-typedef eLeapRS (*pf_SetTrackingMode)(LEAP_CONNECTION, eLeapTrackingMode);
-typedef eLeapRS (*pf_GetTrackingMode)(LEAP_CONNECTION);
-typedef eLeapRS (*pf_SetAllocator)(LEAP_CONNECTION, const LEAP_ALLOCATOR*);
-typedef eLeapRS (*pf_OpenDevice)(LEAP_DEVICE_REF, LEAP_DEVICE*);
+typedef eLeapRS (LEAP_CALL *pf_PollConnection)(LEAP_CONNECTION, uint32_t, LEAP_CONNECTION_MESSAGE*);
+typedef eLeapRS (LEAP_CALL *pf_GetConnectionInfo)(LEAP_CONNECTION, LEAP_CONNECTION_INFO*);
+typedef eLeapRS (LEAP_CALL *pf_SetPolicyFlags)(LEAP_CONNECTION, uint64_t, uint64_t);
+typedef eLeapRS (LEAP_CALL *pf_SetTrackingMode)(LEAP_CONNECTION, eLeapTrackingMode);
+typedef eLeapRS (LEAP_CALL *pf_GetTrackingMode)(LEAP_CONNECTION);
+typedef eLeapRS (LEAP_CALL *pf_SetAllocator)(LEAP_CONNECTION, const LEAP_ALLOCATOR*);
+typedef eLeapRS (LEAP_CALL *pf_OpenDevice)(LEAP_DEVICE_REF, LEAP_DEVICE*);
 typedef void    (*pf_CloseDevice)(LEAP_DEVICE);
-typedef eLeapRS (*pf_GetDeviceInfo)(LEAP_DEVICE, LEAP_DEVICE_INFO*);
-typedef eLeapRS (*pf_GetDeviceList)(LEAP_CONNECTION, LEAP_DEVICE_REF*, uint32_t*);
-typedef eLeapRS (*pf_SaveConfigValue)(LEAP_CONNECTION, const char*, const LEAP_VARIANT*, uint32_t*);
-typedef eLeapRS (*pf_GetVersion)(LEAP_CONNECTION, eLeapVersionPart, LEAP_VERSION*);
-typedef int64_t (*pf_GetNow)(void);
-typedef LEAP_VECTOR (*pf_RectilinearToPixel)(LEAP_CONNECTION, eLeapPerspectiveType, LEAP_VECTOR);
-typedef LEAP_VECTOR (*pf_PixelToRectilinear)(LEAP_CONNECTION, eLeapPerspectiveType, LEAP_VECTOR);
-typedef void (*pf_ExtrinsicCameraMatrix)(LEAP_CONNECTION, eLeapPerspectiveType, float*);
+typedef eLeapRS (LEAP_CALL *pf_GetDeviceInfo)(LEAP_DEVICE, LEAP_DEVICE_INFO*);
+typedef eLeapRS (LEAP_CALL *pf_GetDeviceList)(LEAP_CONNECTION, LEAP_DEVICE_REF*, uint32_t*);
+typedef eLeapRS (LEAP_CALL *pf_SaveConfigValue)(LEAP_CONNECTION, const char*, const LEAP_VARIANT*, uint32_t*);
+typedef eLeapRS (LEAP_CALL *pf_GetVersion)(LEAP_CONNECTION, eLeapVersionPart, LEAP_VERSION*);
+typedef int64_t (LEAP_CALL *pf_GetNow)(void);
+typedef LEAP_VECTOR (LEAP_CALL *pf_RectilinearToPixel)(LEAP_CONNECTION, eLeapPerspectiveType, LEAP_VECTOR);
+typedef LEAP_VECTOR (LEAP_CALL *pf_PixelToRectilinear)(LEAP_CONNECTION, eLeapPerspectiveType, LEAP_VECTOR);
+typedef void (LEAP_CALL *pf_ExtrinsicCameraMatrix)(LEAP_CONNECTION, eLeapPerspectiveType, float*);
 
 typedef struct {
     pf_CreateConnection  CreateConnection;
@@ -128,15 +189,15 @@ typedef struct {
 /* Context                                                                   */
 
 typedef struct {
-    void*           dl;
+    lj_dl_t         dl;
     LeapFns         fn;
     LEAP_CONNECTION conn;
     LEAP_ALLOCATOR  allocator;
 
-    pthread_t       thread;
+    lj_thread_t     thread;
     int             threadStarted;
-    pthread_mutex_t mu;
-    pthread_cond_t  cv;
+    lj_mutex_t      mu;
+    lj_cond_t       cv;
     volatile int    running;
 
     /* connection / device state */
@@ -249,11 +310,11 @@ static void apply_policy_locked(LeapCtx* c) {
 static void handle_device_event(LeapCtx* c, const LEAP_DEVICE_EVENT* ev) {
     LEAP_DEVICE dev = NULL;
     if (c->fn.OpenDevice(ev->device, &dev) != eLeapRS_Success) {
-        pthread_mutex_lock(&c->mu);
+        lj_lock(&c->mu);
         c->deviceCount++;
         c->deviceStatus = ev->status;
         c->pending |= LJ_EV_DEVICE;
-        pthread_mutex_unlock(&c->mu);
+        lj_unlock(&c->mu);
         return;
     }
     LEAP_DEVICE_INFO info; memset(&info, 0, sizeof(info));
@@ -261,7 +322,7 @@ static void handle_device_event(LeapCtx* c, const LEAP_DEVICE_EVENT* ev) {
     char serial[128]; memset(serial, 0, sizeof(serial));
     info.serial = serial; info.serial_length = sizeof(serial);
     eLeapRS r = c->fn.GetDeviceInfo(dev, &info);
-    pthread_mutex_lock(&c->mu);
+    lj_lock(&c->mu);
     c->deviceCount++;
     c->deviceStatus = ev->status ? ev->status : info.status;
     if (r == eLeapRS_Success) {
@@ -271,12 +332,12 @@ static void handle_device_event(LeapCtx* c, const LEAP_DEVICE_EVENT* ev) {
         c->haveDevInfo = 1;
     }
     c->pending |= LJ_EV_DEVICE;
-    pthread_mutex_unlock(&c->mu);
+    lj_unlock(&c->mu);
     c->fn.CloseDevice(dev);
 }
 
 static void handle_tracking(LeapCtx* c, const LEAP_TRACKING_EVENT* t) {
-    pthread_mutex_lock(&c->mu);
+    lj_lock(&c->mu);
     c->frameId   = t->tracking_frame_id;
     c->frameTs   = t->info.timestamp;
     c->framerate = t->framerate;
@@ -285,11 +346,11 @@ static void handle_tracking(LeapCtx* c, const LEAP_TRACKING_EVENT* t) {
     for (uint32_t i = 0; i < n; i++) copy_hand(c->hands + i * LJ_HAND_STRIDE, &t->pHands[i]);
     c->frameSeq++;
     c->pending |= LJ_EV_FRAME;
-    pthread_mutex_unlock(&c->mu);
+    lj_unlock(&c->mu);
 }
 
 static void handle_image(LeapCtx* c, const LEAP_IMAGE_EVENT* e) {
-    pthread_mutex_lock(&c->mu);
+    lj_lock(&c->mu);
     c->imgFrameId = e->info.frame_id;
     c->imgTs      = e->info.timestamp;
     const LEAP_IMAGE_PROPERTIES* p = &e->image[0].properties;
@@ -308,10 +369,10 @@ static void handle_image(LeapCtx* c, const LEAP_IMAGE_EVENT* e) {
     }
     c->imgSeq++;
     c->pending |= LJ_EV_IMAGE;
-    pthread_mutex_unlock(&c->mu);
+    lj_unlock(&c->mu);
 }
 
-static void* poll_thread(void* arg) {
+static LJ_THREAD_RET poll_thread(void* arg) {
     LeapCtx* c = (LeapCtx*)arg;
     LEAP_CONNECTION_MESSAGE msg;
     while (c->running) {
@@ -321,19 +382,19 @@ static void* poll_thread(void* arg) {
         if (r == eLeapRS_Timeout) continue;
         if (r != eLeapRS_Success) {
             /* NotConnected etc.: avoid a hot loop while the service is down */
-            usleep(20000);
+            lj_sleep_ms(20);
             continue;
         }
         switch (msg.type) {
             case eLeapEventType_Connection:
-                pthread_mutex_lock(&c->mu);
+                lj_lock(&c->mu);
                 c->connected = 1;
                 c->pending |= LJ_EV_CONNECTION;
                 apply_policy_locked(c);
-                pthread_mutex_unlock(&c->mu);
+                lj_unlock(&c->mu);
                 break;
             case eLeapEventType_ConnectionLost:
-                pthread_mutex_lock(&c->mu);
+                lj_lock(&c->mu);
                 c->connected = 0;
                 c->deviceCount = 0;
                 c->haveDevInfo = 0;
@@ -341,42 +402,42 @@ static void* poll_thread(void* arg) {
                 c->policyApplied = 0;   /* re-send our flags after reconnecting */
                 c->policyPending = 1;
                 c->pending |= LJ_EV_CONNECTION | LJ_EV_DEVICE;
-                pthread_mutex_unlock(&c->mu);
+                lj_unlock(&c->mu);
                 break;
             case eLeapEventType_Device:
                 handle_device_event(c, msg.device_event);
                 break;
             case eLeapEventType_DeviceLost:
-                pthread_mutex_lock(&c->mu);
+                lj_lock(&c->mu);
                 if (c->deviceCount > 0) c->deviceCount--;
                 if (c->deviceCount == 0) { c->haveDevInfo = 0; c->nHands = 0; }
                 c->pending |= LJ_EV_DEVICE;
-                pthread_mutex_unlock(&c->mu);
+                lj_unlock(&c->mu);
                 break;
             case eLeapEventType_DeviceFailure:
-                pthread_mutex_lock(&c->mu);
+                lj_lock(&c->mu);
                 c->deviceStatus = msg.device_failure_event ? msg.device_failure_event->status : 0;
                 snprintf(c->lastLog, sizeof(c->lastLog), "Device failure, status 0x%08x", c->deviceStatus);
                 c->pending |= LJ_EV_DEVICE | LJ_EV_LOG;
-                pthread_mutex_unlock(&c->mu);
+                lj_unlock(&c->mu);
                 break;
             case eLeapEventType_DeviceStatusChange:
-                pthread_mutex_lock(&c->mu);
+                lj_lock(&c->mu);
                 if (msg.device_status_change_event) c->deviceStatus = msg.device_status_change_event->status;
                 c->pending |= LJ_EV_DEVICE;
-                pthread_mutex_unlock(&c->mu);
+                lj_unlock(&c->mu);
                 break;
             case eLeapEventType_Policy:
-                pthread_mutex_lock(&c->mu);
+                lj_lock(&c->mu);
                 c->policyCurrent = msg.policy_event ? msg.policy_event->current_policy : 0;
                 c->pending |= LJ_EV_POLICY;
-                pthread_mutex_unlock(&c->mu);
+                lj_unlock(&c->mu);
                 break;
             case eLeapEventType_TrackingMode:
-                pthread_mutex_lock(&c->mu);
+                lj_lock(&c->mu);
                 if (msg.tracking_mode_event) c->trackingMode = (int)msg.tracking_mode_event->current_tracking_mode;
                 c->pending |= LJ_EV_TRACKINGMODE;
-                pthread_mutex_unlock(&c->mu);
+                lj_unlock(&c->mu);
                 break;
             case eLeapEventType_Tracking:
                 if (msg.tracking_event) handle_tracking(c, msg.tracking_event);
@@ -386,31 +447,31 @@ static void* poll_thread(void* arg) {
                 break;
             case eLeapEventType_LogEvent:
                 if (msg.log_event && msg.log_event->message) {
-                    pthread_mutex_lock(&c->mu);
+                    lj_lock(&c->mu);
                     snprintf(c->lastLog, sizeof(c->lastLog), "%s", msg.log_event->message);
                     c->pending |= LJ_EV_LOG;
-                    pthread_mutex_unlock(&c->mu);
+                    lj_unlock(&c->mu);
                 }
                 break;
             case eLeapEventType_LogEvents:
                 if (msg.log_events && msg.log_events->nEvents > 0) {
                     const LEAP_LOG_EVENT* le = &msg.log_events->events[msg.log_events->nEvents - 1];
                     if (le->message) {
-                        pthread_mutex_lock(&c->mu);
+                        lj_lock(&c->mu);
                         snprintf(c->lastLog, sizeof(c->lastLog), "%s", le->message);
                         c->pending |= LJ_EV_LOG;
-                        pthread_mutex_unlock(&c->mu);
+                        lj_unlock(&c->mu);
                     }
                 }
                 break;
             default:
                 break; /* ConfigResponse, DroppedFrame, IMU, ... ignored */
         }
-        pthread_mutex_lock(&c->mu);
-        if (c->pending) pthread_cond_broadcast(&c->cv);
-        pthread_mutex_unlock(&c->mu);
+        lj_lock(&c->mu);
+        if (c->pending) lj_cond_broadcast(&c->cv);
+        lj_unlock(&c->mu);
     }
-    return NULL;
+    LJ_THREAD_RETURN;
 }
 
 /* ------------------------------------------------------------------------- */
@@ -419,15 +480,21 @@ static void* poll_thread(void* arg) {
 static LeapCtx* ctx_of(jlong h) { return (LeapCtx*)(intptr_t)h; }
 
 #define LOAD_SYM(name) do { \
-    c->fn.name = (pf_##name)dlsym(c->dl, "Leap" #name); \
+    c->fn.name = (pf_##name)lj_dlsym(c->dl, "Leap" #name); \
     if (!c->fn.name) { set_error(c, "Symbol Leap" #name " not found in libLeapC"); return -2; } \
 } while (0)
-#define LOAD_SYM_OPT(name) do { c->fn.name = (pf_##name)dlsym(c->dl, "Leap" #name); } while (0)
+#define LOAD_SYM_OPT(name) do { c->fn.name = (pf_##name)lj_dlsym(c->dl, "Leap" #name); } while (0)
 
 static int load_leapc(LeapCtx* c, const char* path) {
     if (c->dl) return 0;
     const char* candidates[] = {
         path,
+#ifdef _WIN32
+        "LeapC.dll",
+        "C:\\Program Files\\Ultraleap\\LeapSDK\\lib\\x64\\LeapC.dll",
+        "C:\\Program Files\\Ultraleap\\LeapSDK\\lib\\LeapC.dll",
+        "C:\\Program Files\\Ultraleap\\Ultraleap Hand Tracking\\LeapC.dll",
+#elif defined(__APPLE__)
         "libLeapC.6.dylib",
         "libLeapC.dylib",
         "libLeapC.5.dylib",
@@ -435,21 +502,30 @@ static int load_leapc(LeapCtx* c, const char* path) {
         "/Applications/Ultraleap Hand Tracking.app/Contents/LeapSDK/lib/libLeapC.dylib",
         "/Library/Application Support/Ultraleap/LeapSDK/lib/libLeapC.dylib",
         "/Applications/Ultraleap Hand Tracking Service.app/Contents/LeapSDK/lib/libLeapC.dylib",
+#else
+        "libLeapC.so.6",
+        "libLeapC.so",
+        "libLeapC.so.5",
+        "/usr/lib/ultraleap-hand-tracking-service/libLeapC.so",
+        "/usr/lib/ultraleap-hand-tracking-service/libLeapC.so.6",
+        "/opt/ultraleap/LeapSDK/lib/libLeapC.so",
+#endif
         NULL
     };
     char home[1024]; home[0] = 0;
+#ifdef __APPLE__
     const char* h = getenv("HOME");
     if (h) snprintf(home, sizeof(home), "%s/Applications/Ultraleap Hand Tracking.app/Contents/LeapSDK/lib/libLeapC.6.dylib", h);
+#endif
     for (int i = 0; candidates[i] != NULL || i == 0; i++) {
         const char* p = candidates[i];
         if (!p || !*p) continue;
-        c->dl = dlopen(p, RTLD_NOW | RTLD_LOCAL);
+        c->dl = lj_dlopen(p);
         if (c->dl) break;
     }
-    if (!c->dl && home[0]) c->dl = dlopen(home, RTLD_NOW | RTLD_LOCAL);
+    if (!c->dl && home[0]) c->dl = lj_dlopen(home);
     if (!c->dl) {
-        const char* e = dlerror();
-        set_error(c, "Could not load libLeapC (Ultraleap Hand Tracking not installed?). dlerror: %s", e ? e : "unknown");
+        set_error(c, "Could not load the LeapC library (Ultraleap Hand Tracking not installed?): %s", lj_dlerror());
         return -1;
     }
     LOAD_SYM(CreateConnection); LOAD_SYM(OpenConnection); LOAD_SYM(CloseConnection);
@@ -472,8 +548,8 @@ JNIEXPORT jlong JNICALL Java_com_leapmotion_leap_LeapJNI_nCreate(JNIEnv* env, jc
     (void)env; (void)cls;
     LeapCtx* c = (LeapCtx*)calloc(1, sizeof(LeapCtx));
     if (!c) return 0;
-    pthread_mutex_init(&c->mu, NULL);
-    pthread_cond_init(&c->cv, NULL);
+    lj_mutex_init(&c->mu);
+    lj_cond_init(&c->cv);
     c->allocator.allocate = lj_alloc;
     c->allocator.deallocate = lj_free;
     c->allocator.state = NULL;
@@ -503,9 +579,9 @@ JNIEXPORT jint JNICALL Java_com_leapmotion_leap_LeapJNI_nOpen(JNIEnv* env, jclas
 
     if (!c->threadStarted) {
         c->running = 1;
-        if (pthread_create(&c->thread, NULL, poll_thread, c) != 0) {
+        if (lj_thread_create(&c->thread, poll_thread, c) != 0) {
             c->running = 0;
-            set_error(c, "pthread_create failed: %s", strerror(errno));
+            set_error(c, "could not create the polling thread");
             return -5;
         }
         c->threadStarted = 1;
@@ -520,16 +596,16 @@ JNIEXPORT void JNICALL Java_com_leapmotion_leap_LeapJNI_nClose(JNIEnv* env, jcla
     if (c->threadStarted) {
         c->running = 0;
         if (c->conn && c->fn.CloseConnection) c->fn.CloseConnection(c->conn);
-        pthread_join(c->thread, NULL);
+        lj_thread_join(c->thread);
         c->threadStarted = 0;
     } else if (c->conn && c->fn.CloseConnection) {
         c->fn.CloseConnection(c->conn);
     }
-    pthread_mutex_lock(&c->mu);
+    lj_lock(&c->mu);
     c->connected = 0; c->deviceCount = 0; c->haveDevInfo = 0; c->nHands = 0;
     c->pending |= LJ_EV_CONNECTION;
-    pthread_cond_broadcast(&c->cv);
-    pthread_mutex_unlock(&c->mu);
+    lj_cond_broadcast(&c->cv);
+    lj_unlock(&c->mu);
 }
 
 JNIEXPORT void JNICALL Java_com_leapmotion_leap_LeapJNI_nDestroy(JNIEnv* env, jclass cls, jlong h) {
@@ -539,8 +615,8 @@ JNIEXPORT void JNICALL Java_com_leapmotion_leap_LeapJNI_nDestroy(JNIEnv* env, jc
     if (c->conn && c->fn.DestroyConnection) c->fn.DestroyConnection(c->conn);
     c->conn = NULL;
     free(c->imgData[0]); free(c->imgData[1]);
-    pthread_mutex_destroy(&c->mu);
-    pthread_cond_destroy(&c->cv);
+    lj_mutex_destroy(&c->mu);
+    lj_cond_destroy(&c->cv);
     /* keep dl handle loaded: dlclose of LeapC is not safe for re-open */
     free(c);
 }
@@ -549,17 +625,13 @@ JNIEXPORT jint JNICALL Java_com_leapmotion_leap_LeapJNI_nWait(JNIEnv* env, jclas
     (void)env; (void)cls;
     LeapCtx* c = ctx_of(h);
     if (!c) return 0;
-    pthread_mutex_lock(&c->mu);
+    lj_lock(&c->mu);
     if (!c->pending && timeoutMs > 0) {
-        struct timeval now; gettimeofday(&now, NULL);
-        struct timespec ts;
-        int64_t ns = (int64_t)now.tv_usec * 1000 + (int64_t)timeoutMs * 1000000;
-        ts.tv_sec = now.tv_sec + ns / 1000000000; ts.tv_nsec = ns % 1000000000;
-        pthread_cond_timedwait(&c->cv, &c->mu, &ts);
+        lj_cond_timedwait_ms(&c->cv, &c->mu, timeoutMs);
     }
     jint p = (jint)c->pending;
     c->pending = 0;
-    pthread_mutex_unlock(&c->mu);
+    lj_unlock(&c->mu);
     return p;
 }
 
@@ -595,11 +667,11 @@ JNIEXPORT jboolean JNICALL Java_com_leapmotion_leap_LeapJNI_nDeviceInfo(JNIEnv* 
     LeapCtx* c = ctx_of(h);
     if (!c || !out || (*env)->GetArrayLength(env, out) < 7) return JNI_FALSE;
     float v[7];
-    pthread_mutex_lock(&c->mu);
+    lj_lock(&c->mu);
     int ok = c->haveDevInfo;
     v[0] = (float)c->deviceStatus; v[1] = (float)c->devInfo.caps; v[2] = (float)c->devInfo.pid;
     v[3] = (float)c->devInfo.baseline; v[4] = c->devInfo.h_fov; v[5] = c->devInfo.v_fov; v[6] = (float)c->devInfo.range;
-    pthread_mutex_unlock(&c->mu);
+    lj_unlock(&c->mu);
     (*env)->SetFloatArrayRegion(env, out, 0, 7, v);
     return ok ? JNI_TRUE : JNI_FALSE;
 }
@@ -609,9 +681,9 @@ JNIEXPORT jstring JNICALL Java_com_leapmotion_leap_LeapJNI_nDeviceSerial(JNIEnv*
     LeapCtx* c = ctx_of(h);
     if (!c) return new_string(env, "");
     char s[128];
-    pthread_mutex_lock(&c->mu);
+    lj_lock(&c->mu);
     strncpy(s, c->haveDevInfo ? c->serial : "", sizeof(s) - 1); s[sizeof(s) - 1] = 0;
-    pthread_mutex_unlock(&c->mu);
+    lj_unlock(&c->mu);
     return new_string(env, s);
 }
 
@@ -619,14 +691,14 @@ JNIEXPORT void JNICALL Java_com_leapmotion_leap_LeapJNI_nSetPolicy(JNIEnv* env, 
     (void)env; (void)cls;
     LeapCtx* c = ctx_of(h);
     if (!c) return;
-    pthread_mutex_lock(&c->mu);
+    lj_lock(&c->mu);
     uint64_t before = c->policyDesired;
     c->policyDesired = (c->policyDesired | (uint64_t)set) & ~(uint64_t)clear;
     if (c->policyDesired != before || c->policyPending) {
         c->policyPending = 1;
         apply_policy_locked(c);
     }
-    pthread_mutex_unlock(&c->mu);
+    lj_unlock(&c->mu);
 }
 
 JNIEXPORT jlong JNICALL Java_com_leapmotion_leap_LeapJNI_nGetPolicy(JNIEnv* env, jclass cls, jlong h) {
@@ -649,15 +721,15 @@ JNIEXPORT jint JNICALL Java_com_leapmotion_leap_LeapJNI_nReadFrame(JNIEnv* env, 
     if ((*env)->GetArrayLength(env, meta) < LJ_META_LEN) return -1;
     jsize cap = (*env)->GetArrayLength(env, data);
     jlong m[LJ_META_LEN];
-    pthread_mutex_lock(&c->mu);
-    if (c->frameSeq == 0) { pthread_mutex_unlock(&c->mu); return -1; }
+    lj_lock(&c->mu);
+    if (c->frameSeq == 0) { lj_unlock(&c->mu); return -1; }
     uint32_t n = c->nHands;
     if ((jsize)(n * LJ_HAND_STRIDE) > cap) n = (uint32_t)(cap / LJ_HAND_STRIDE);
     union { float f; int32_t i; } fr; fr.f = c->framerate;
     m[0] = c->frameId; m[1] = c->frameTs; m[2] = n; m[3] = fr.i; m[4] = (jlong)c->frameSeq;
     m[5] = (jlong)c->policyCurrent; m[6] = c->connected; m[7] = (jlong)c->deviceStatus;
     if (n > 0) (*env)->SetFloatArrayRegion(env, data, 0, (jsize)(n * LJ_HAND_STRIDE), c->hands);
-    pthread_mutex_unlock(&c->mu);
+    lj_unlock(&c->mu);
     (*env)->SetLongArrayRegion(env, meta, 0, LJ_META_LEN, m);
     return (jint)n;
 }
@@ -670,8 +742,8 @@ JNIEXPORT jint JNICALL Java_com_leapmotion_leap_LeapJNI_nReadImages(JNIEnv* env,
     if (!c || !meta || (*env)->GetArrayLength(env, meta) < LJ_META_LEN) return 0;
     jlong m[LJ_META_LEN];
     int copied = 0;
-    pthread_mutex_lock(&c->mu);
-    if (c->imgSeq == 0) { pthread_mutex_unlock(&c->mu); memset(m, 0, sizeof(m)); (*env)->SetLongArrayRegion(env, meta, 0, LJ_META_LEN, m); return 0; }
+    lj_lock(&c->mu);
+    if (c->imgSeq == 0) { lj_unlock(&c->mu); memset(m, 0, sizeof(m)); (*env)->SetLongArrayRegion(env, meta, 0, LJ_META_LEN, m); return 0; }
     m[0] = c->imgFrameId; m[1] = c->imgTs; m[2] = c->imgW; m[3] = c->imgH; m[4] = c->imgBpp; m[5] = c->imgFormat; m[6] = (jlong)c->imgSeq; m[7] = (jlong)c->imgLen[0];
     jbyteArray arr[2] = { left, right };
     for (int i = 0; i < 2; i++) {
@@ -681,7 +753,7 @@ JNIEXPORT jint JNICALL Java_com_leapmotion_leap_LeapJNI_nReadImages(JNIEnv* env,
         (*env)->SetByteArrayRegion(env, arr[i], 0, (jsize)c->imgLen[i], (const jbyte*)c->imgData[i]);
         copied++;
     }
-    pthread_mutex_unlock(&c->mu);
+    lj_unlock(&c->mu);
     (*env)->SetLongArrayRegion(env, meta, 0, LJ_META_LEN, m);
     return copied;
 }
@@ -737,8 +809,7 @@ JNIEXPORT jlong JNICALL Java_com_leapmotion_leap_LeapJNI_nNow(JNIEnv* env, jclas
     (void)env; (void)cls;
     LeapCtx* c = ctx_of(h);
     if (c && c->fn.GetNow) return (jlong)c->fn.GetNow();
-    struct timeval tv; gettimeofday(&tv, NULL);
-    return (jlong)tv.tv_sec * 1000000 + tv.tv_usec;
+    return (jlong)lj_now_us();
 }
 
 JNIEXPORT jstring JNICALL Java_com_leapmotion_leap_LeapJNI_nLastError(JNIEnv* env, jclass cls, jlong h) {
@@ -752,9 +823,9 @@ JNIEXPORT jstring JNICALL Java_com_leapmotion_leap_LeapJNI_nLastLog(JNIEnv* env,
     LeapCtx* c = ctx_of(h);
     if (!c) return new_string(env, "");
     char s[512];
-    pthread_mutex_lock(&c->mu);
+    lj_lock(&c->mu);
     strncpy(s, c->lastLog, sizeof(s) - 1); s[sizeof(s) - 1] = 0;
-    pthread_mutex_unlock(&c->mu);
+    lj_unlock(&c->mu);
     return new_string(env, s);
 }
 
@@ -790,7 +861,7 @@ JNIEXPORT jboolean JNICALL Java_com_leapmotion_leap_LeapJNI_nExtrinsicCameraMatr
     LeapCtx* c = ctx_of(h);
     if (!c || !c->conn || !c->fn.ExtrinsicCameraMatrix || !out || (*env)->GetArrayLength(env, out) < 16) return JNI_FALSE;
     float m[16];
-    for (int i = 0; i < 16; i++) m[i] = 0.0f / 0.0f; /* NaN sentinel: unchanged means not available */
+    { float nanv; uint32_t bits = 0x7FC00000u; memcpy(&nanv, &bits, 4); for (int i = 0; i < 16; i++) m[i] = nanv; } /* NaN sentinel */
     c->fn.ExtrinsicCameraMatrix(c->conn, (eLeapPerspectiveType)camera, m);
     for (int i = 0; i < 16; i++) if (m[i] != m[i]) return JNI_FALSE;
     (*env)->SetFloatArrayRegion(env, out, 0, 16, m);

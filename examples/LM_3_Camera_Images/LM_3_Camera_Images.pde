@@ -1,3 +1,12 @@
+/**
+ * LM_3_Camera_Images - the raw infrared pictures from the two cameras.
+ *
+ * Shows what the Leap Motion actually sees: two black-and-white infrared images,
+ * one per camera. Hands look bright because the device lights them with
+ * infrared LEDs. See LM_5_Camera_Overlay for the tracked skeleton drawn on top.
+ *
+ * Leap Motion for Processing (Apple Silicon fork) - original by Darius Morawiec
+ */
 import de.voidplus.leapmotion.*;
 
 LeapMotion leap;

@@ -1,3 +1,13 @@
+/**
+ * LM_1_Basics - everything the Leap Motion can tell you about your hands.
+ *
+ * Put one or two hands above the device. The sketch draws them and reads, for
+ * each hand, its position, direction, grab and pinch strength, the arm, every
+ * finger with its four bones, and the device information. Open the console to
+ * see the values. Use this example as a reference for the whole API.
+ *
+ * Leap Motion for Processing (Apple Silicon fork) - original by Darius Morawiec
+ */
 import de.voidplus.leapmotion.*;
 
 // ======================================================

@@ -1,153 +1,68 @@
-# Leap Motion for Processing — fork for macOS Apple Silicon (M1/M2/M3/M4)
+# Leap Motion for Processing
 
-**Fork** of the [Leap Motion for Processing](https://github.com/nok/leap-motion-processing) library
-v2.3.1.6 by Darius Morawiec (the original is included, unchanged, in
-[`leap-motion-processing-master/`](leap-motion-processing-master/)).
+Use the **Leap Motion Controller** (the small hand-tracking camera) in **Processing 4**,
+on **macOS 11 or newer (Apple Silicon and Intel)** and **Windows 10/11**.
 
-The original library only worked on Intel Macs: it depended on the **Leap Motion V2** software
-(the `leapd` daemon, x86_64 only) and on native binaries `libLeap.dylib` / `libLeapJava.dylib`
-built for i386/x86_64. This fork keeps the **same API** (`import de.voidplus.leapmotion.*;`)
-and the same examples, but:
+A fork of [Leap Motion for Processing](https://github.com/nok/leap-motion-processing) by
+Darius Morawiec, updated by **Tiago Martins** so that it works on today's computers: the
+original only ran on old Intel Macs. The programming interface and the examples are the same,
+so old sketches keep working.
 
-* replaces the V2 SDK with a Java re-implementation of the `com.leapmotion.leap` package
-  (Controller, Frame, Hand, Finger, Bone, Arm, Gesture, Image, Device, ...);
-* connects to the current Ultraleap tracking service (**Hyperion 6.x / Gemini 5.x**, LeapC API)
-  through a small native JNI bridge (`libLeapJava.dylib`, universal arm64 + x86_64 binary);
-* recognises the four gestures (swipe, circle, key tap, screen tap) in Java, because the
-  Ultraleap service no longer provides gestures;
-* works with **Processing 4.x** (native folders `macos-aarch64` / `macos-x86_64`).
-
-Fork author: **Tiago Martins**. MIT licence, as the original.
+> Made for artists and students: you do not need to compile anything or use the Terminal.
+> If something does not work, read [Problems and solutions](#problems-and-solutions).
 
 ---
 
-## Contents
+## Start in 3 steps
 
-1. [How it works](#1-how-it-works)
-2. [Requirements](#2-requirements)
-3. [Installing the driver (Ultraleap service)](#3-installing-the-driver-ultraleap-service)
-4. [Installing the library in Processing](#4-installing-the-library-in-processing)
-5. [Usage](#5-usage)
-6. [Differences from the original library](#6-differences-from-the-original-library)
-7. [Building from source](#7-building-from-source)
-8. [Troubleshooting](#8-troubleshooting)
-9. [Repository layout](#9-repository-layout)
-10. [Licence](#10-licence)
+### 1. Download
 
----
+Download **LeapMotionForProcessing.zip** from the
+[Releases page](../../releases/latest) and unzip it. You get a folder called
+`LeapMotionForProcessing`.
 
-## 1. How it works
+### 2. Install (double-click)
 
-```
- Processing 4 sketch
-   import de.voidplus.leapmotion.*;        (API of the original library, unchanged)
-          │
-   de.voidplus.leapmotion.*                LeapMotionForProcessing.jar  (fork)
-          │
-   com.leapmotion.leap.*                   LeapJava.jar  (Java re-implementation of the V2 API)
-          │  JNI
-   libLeapJava.dylib                       native bridge (arm64 + x86_64), native/leapjni.c
-          │  dlopen
-   libLeapC.6.dylib                        Ultraleap LeapC SDK (installed with the driver)
-          │  WebSocket 127.0.0.1
-   libtrack_server                         Ultraleap Hyperion 6.2 tracking service
-          │  USB
-   Leap Motion Controller (1st generation, VID 0xF182) or Leap Motion Controller 2
-```
+Plug the Leap Motion into a USB port, open the `install` folder inside the unzipped folder and
+double-click:
 
-The "driver" is the official **Ultraleap Hand Tracking 6.2.0** software for Apple Silicon.
-It does the computer vision work (IR cameras → hand skeleton). What this project adds is
-everything above it: the native bridge, the Java API and the Processing library. The Ultraleap
-installer is not redistributed in this repository; `driver/install_driver.sh` downloads it
-from the official site and verifies the signature (Developer ID *ULTRALEAP LIMITED*) and the
-Apple notarization before installing.
-
-## 2. Requirements
-
-| Component | Version |
+| | |
 |---|---|
-| macOS | 11 (Big Sur) or newer, Apple Silicon or Intel |
-| Processing | 4.x (tested with 4.4.10) |
-| Device | Leap Motion Controller (original) or Leap Motion Controller 2 |
-| Driver | Ultraleap Hand Tracking **6.2.0** (Hyperion) for macOS |
-| To build (optional) | Xcode or Command Line Tools, JDK 17+ |
+| **macOS** | `Install Leap Motion for Processing (macOS).command` |
+| **Windows** | `Install Leap Motion for Processing (Windows).bat` |
 
-## 3. Installing the driver (Ultraleap service)
+The installer does two things: it installs the **Leap Motion driver** (the official Ultraleap
+software, downloaded from Ultraleap's website; your computer asks for your password once) and
+it copies the **library** into your Processing sketchbook. At the end it opens Processing with
+the test example.
 
-Plug the Leap Motion into a USB port and run, from this project folder (or from the
-`driver/` folder inside the installed library):
+*macOS: if the file does not open on double-click, right-click it and choose "Open".*
 
-### Option A — official installation (recommended, asks for the administrator password)
+### 3. Try it
 
-```bash
-./driver/install_driver.sh
-```
+In Processing open **File > Examples > Contributed Libraries > Leap Motion for Processing >
+LM_0_Test** and press **Run** (the triangle). Put a hand above the device:
 
-The script downloads `tracking-software-apple-silicon-6.2.0.pkg` (≈ 480 MB) to `~/Downloads`,
-verifies the signature and opens the macOS installer. It installs
-`/Applications/Ultraleap Hand Tracking.app` and a *LaunchDaemon* that starts the
-`libtrack_server` service automatically at boot.
+* green dot = the Leap Motion works, you see your hand on screen;
+* red dot = read the message on screen, it says what is missing.
 
-### Option B — without an administrator password
+---
 
-```bash
-./driver/install_driver.sh --user
-```
+## Examples
 
-Extracts the application into `~/Applications/Ultraleap Hand Tracking.app` and installs a
-user *LaunchAgent* (`~/Library/LaunchAgents/com.ultraleap.tracking.service.plist`) that starts
-the service at login. Everything stays inside the user's home folder.
+All examples are in Processing under **File > Examples > Contributed Libraries > Leap Motion for Processing**.
 
-### Checking
+| Example | What it does | What you do |
+|---|---|---|
+| **LM_0_Test** | Checks that everything works: connection, device, frames per second, hands | Put a hand above the device |
+| **LM_1_Basics** | Shows every value the Leap Motion gives: position, fingers, bones, arm, grab, pinch | Move your hands; look at the console |
+| **LM_2_Gestures** | Four gestures with feedback cards that turn green | Swipe, draw a circle, tap forward, tap down with one finger |
+| **LM_3_Camera_Images** | The raw infrared pictures from the two cameras | Just look |
+| **LM_4_Stack_Cubes** | A 3D table with cubes you pick up and stack; cubes fall, push each other and tip over | Pinch a cube with thumb + index, move, open the fingers to drop or throw |
+| **LM_5_Camera_Overlay** | The camera picture with the tracked skeleton drawn on top | Keys: 1 / 2 / b cameras, m mirror, v flip |
+| **LM_6_Draw** | A drawing board | Right index finger draws (push forward), left index finger picks colour, shape, size |
 
-```bash
-./driver/leap_service.sh status      # app installed? service running? device on USB?
-./driver/bin/leapcheck 5             # connects to the service through LeapC and prints frames for 5 s
-./driver/leap_service.sh panel       # opens the Ultraleap Control Panel (camera view)
-```
-
-Other commands: `leap_service.sh start | stop | restart | log` and `driver/uninstall_driver.sh`.
-
-## 4. Installing the library in Processing
-
-### From the pre-built `dist/` folder
-
-```bash
-./install_library.sh
-```
-
-Copies `dist/LeapMotionForProcessing` to `~/Documents/Processing/libraries/` (or to the
-sketchbook set in the Processing preferences). If the old Intel folders `LeapJava` and
-`LeapMotionForProcessing` exist, they are moved to `libraries/old/`, because they would create
-duplicate `com.leapmotion.leap.*` classes and contain incompatible binaries.
-
-### Manually
-
-Copy the `dist/LeapMotionForProcessing` folder (or unzip `dist/LeapMotionForProcessing.zip`)
-into the `libraries` folder of your sketchbook and restart Processing.
-
-Installed layout (Processing 4 library format):
-
-```
-LeapMotionForProcessing/
-├── library.properties
-├── library/
-│   ├── LeapMotionForProcessing.jar      de.voidplus.leapmotion (fork)
-│   ├── LeapJava.jar                     com.leapmotion.leap (LeapC re-implementation)
-│   ├── macos-aarch64/libLeapJava.dylib  JNI bridge (universal)
-│   └── macos-x86_64/libLeapJava.dylib
-├── examples/   LM_0_Test, LM_1_Basics, LM_2_Gestures, LM_3_Camera_Images
-├── driver/     installation scripts for the Ultraleap service
-├── src/        source code
-└── reference/
-```
-
-## 5. Usage
-
-The API is the one of the original library; see the reference in
-[`leap-motion-processing-master/README.md`](leap-motion-processing-master/README.md).
-Start with the **LM_0_Test** example (`File > Examples > Contributed Libraries > Leap Motion for Processing`):
-it shows whether the service is connected, the detected device, the hands and the frame rate.
+The basics in code:
 
 ```java
 import de.voidplus.leapmotion.*;
@@ -156,147 +71,158 @@ LeapMotion leap;
 
 void setup() {
   size(800, 500);
-  leap = new LeapMotion(this);          // new LeapMotion(this, true) prints diagnostics
+  leap = new LeapMotion(this);
 }
 
 void draw() {
   background(255);
   for (Hand hand : leap.getHands()) {
-    hand.draw();
-    PVector pos = hand.getPosition();   // mapped to the screen (see setWorld / moveWorld)
-    PVector raw = hand.getRawPosition();// millimetres, origin at the device
-    float grab = hand.getGrabStrength();
-    for (Finger f : hand.getOutstretchedFingers()) {
-      PVector tip = f.getPosition();
+    hand.draw();                              // draws the hand
+    PVector pos = hand.getPosition();         // position on the screen
+    float grab = hand.getGrabStrength();      // 0 = open hand, 1 = fist
+    for (Finger finger : hand.getOutstretchedFingers()) {
+      PVector tip = finger.getPosition();     // finger tip on the screen
     }
   }
 }
-
-// optional callbacks
-void leapOnConnect()    { println("connected"); }
-void leapOnDisconnect() { println("disconnected"); }
-void leapOnFrame()      { }
 ```
 
-Gestures (see LM_2_Gestures):
+More: `hand.isLeft()`, `hand.getPinchStrength()`, `hand.getIndexFinger()`,
+`finger.getRawPosition()` (millimetres), `leap.getImages()` (camera pictures),
+`new LeapMotion(this).allowGestures()` with `leapOnSwipeGesture(...)`,
+`leapOnCircleGesture(...)`, `leapOnKeyTapGesture(...)`, `leapOnScreenTapGesture(...)`.
+The full reference is in [original/README.md](original/README.md) (same API).
 
-```java
-leap = new LeapMotion(this).withGestures("swipe, circle, screen_tap, key_tap");
+---
 
-void leapOnSwipeGesture(SwipeGesture g, int state) { /* 1 start, 2 update, 3 stop */ }
-void leapOnCircleGesture(CircleGesture g, int state) { }
-void leapOnKeyTapGesture(KeyTapGesture g) { }
-void leapOnScreenTapGesture(ScreenTapGesture g) { }
+## What you need
+
+| | |
+|---|---|
+| Computer | Mac with macOS **11 (Big Sur) or newer**, Apple Silicon (M1, M2, M3, M4) or Intel; or Windows 10/11 64-bit |
+| Processing | version **4** ([processing.org/download](https://processing.org/download)) |
+| Device | Leap Motion Controller (the original, 2013) or Leap Motion Controller 2 |
+| Driver | Ultraleap Hand Tracking 6.2 (installed by the installer; needs an administrator password) |
+
+Tested on macOS 27.0.1 with Processing 4.4.10 and an original Leap Motion Controller.
+Linux (Ubuntu 22.04) binaries are built too but have not been tested with a device.
+
+---
+
+## Problems and solutions
+
+**The dot is red and the screen says the service is not running**
+The Leap Motion driver is installed but stopped. On macOS open *Ultraleap Hand Tracking* in your
+Applications folder (or restart the Mac); on Windows start the *Ultraleap Tracking Service* from the
+Ultraleap control panel.
+
+**The dot is red and the screen says the driver is not installed**
+Run the installer again, or install the driver by hand from
+[ultraleap.com/downloads/leap-controller](https://www.ultraleap.com/downloads/leap-controller/)
+(choose your system: Apple Silicon, Apple Intel or Windows).
+
+**The dot is green but no hands appear**
+Keep the hand 10 to 50 cm above the device, palm down, in a room without strong sunlight.
+Check that the device's USB cable is firmly connected; try another port.
+
+**Device detected, green dot, but 0 fps**
+Unplug and plug the Leap Motion again, or restart the driver (macOS: open *Ultraleap Hand Tracking*;
+Windows: Ultraleap control panel).
+
+**Processing says the library is duplicated or in conflict**
+An old version of the library is still in your sketchbook. Delete the folders `LeapJava` and
+`LeapMotionForProcessing` from `Documents/Processing/libraries` and run the installer again.
+
+**I want to know what is wrong**
+macOS: double-click `install/Check Leap Motion (macOS).command`; it prints, in plain words, what
+works and what to do.
+
+---
+
+## For developers
+
+<details>
+<summary>How it works, building, tests, contributing</summary>
+
+### How it works
+
+```
+ Processing 4 sketch  (import de.voidplus.leapmotion.*)
+   │
+   de.voidplus.leapmotion.*      LeapMotionForProcessing.jar  (fork of the original library)
+   │
+   com.leapmotion.leap.*         LeapJava.jar  (Java re-implementation of the V2 API over LeapC)
+   │  JNI
+   libLeapJava / LeapJava.dll    native bridge, native/leapjni.c (macOS universal, Windows x64, Linux x64)
+   │  dynamic loading
+   libLeapC                      Ultraleap LeapC SDK, installed with the driver
+   │  WebSocket 127.0.0.1
+   Ultraleap tracking service    Hyperion 6.2 (libtrack_server / LeapSvc)
+   │  USB
+   Leap Motion Controller
 ```
 
-Camera images (see LM_3_Camera_Images): `leap.allowImages()` and then
-`for (Image img : leap.getImages()) image(img, 0, 0);`.
+The "driver" is the official Ultraleap Hand Tracking software, which does the computer vision.
+It is not redistributed here: the installers download it from Ultraleap's site and, on macOS,
+verify its Apple signature and notarization. This project adds everything above it.
 
-Direct access to the Java API (without Processing) — `LeapJava.jar` + `libLeapJava.dylib`:
+Differences from the original library: tools (pens) do not exist in Ultraleap; the four gestures
+are recognised in Java with the V2 default thresholds (tunable through `setGesture*()`);
+`getSphereRadius()` and the touch zone are approximations; finger velocities and stabilised
+positions are computed from the previous frame.
 
-```java
-Controller c = new Controller(new Listener() {
-  public void onFrame(Controller c) { Frame f = c.frame(); /* f.hands() ... */ }
-});
+### Layout
+
+```
+build.sh, install_library.sh     build everything / install into the sketchbook
+library.properties               Processing library metadata
+src/com/leapmotion/leap/         Java API over LeapC (+ LeapJNI loader, GestureRecognizer)
+src/de/voidplus/leapmotion/      Processing wrapper (fork; version strings only)
+native/                          leapjni.c, LeapC.h, build_native.sh / .bat, mock/ (fake LeapC for tests)
+driver/                          driver install/status/uninstall scripts (macOS), leapcheck.c
+install/                         double-click installers and check for end users
+examples/                        LM_0 ... LM_6
+test/                            ApiTest, BridgeTest, LeapDiag, test sketch
+scripts/                         run_tests.sh/.bat, run_sketch_test.sh, leap_diag.sh
+.github/workflows/build.yml      CI: builds and tests on macOS, Windows and Linux; packages the zip
+original/                        the original library 2.3.1.6, unchanged (reference)
 ```
 
-## 6. Differences from the original library
+### Building
 
-| Topic | Original (V2 SDK) | This fork (Ultraleap LeapC) |
-|---|---|---|
-| Tracking service | Leap Motion V2 2.3.1 (`leapd`, Intel) | Ultraleap Hyperion 6.2 / Gemini 5 (native arm64) |
-| Native binaries | `libLeap.dylib` + `libLeapJava.dylib` (i386/x86_64) | universal `libLeapJava.dylib`; `libLeapC` ships with the driver |
-| Gestures | recognised by the service | recognised in Java with the same default thresholds; tunable with `setGesture*()` |
-| Tools (pens) | supported | not available in Ultraleap: `getTools()` returns an empty list |
-| `getSpherePosition/Radius` | computed by the service | approximated from the grab strength (open hand 100 mm, fist 30 mm) |
-| `getTouchZone/Distance` | adaptive touch plane | approximation: plane at z = 0, 100 mm hover zone |
-| Finger tip velocity, stabilised tip position | provided by the service | computed in Java from the previous frame |
-| `setConfig()` | service configuration | `Gesture.*` keys configure the recogniser; other keys are sent to the service (best effort) |
-| Images | 8-bit IR | 8-bit IR (`allow_images` is enabled by default in the Hyperion configuration) |
-| Device FOV / range | reported by the service | Hyperion reports zero for the original controller; V2 values are used as fallback |
-| Processing | 3.x | 4.x (`macos-aarch64` / `macos-x86_64` folders) |
-
-Everything else (hands, fingers, bones, arm, callbacks, `setWorld`, `moveWorld`, `draw()`,
-devices) keeps the behaviour documented in the original library.
-
-## 7. Building from source
+Requirements: JDK 17+, a C compiler (Xcode Command Line Tools / MSVC / gcc). Processing itself is
+optional: `build.sh` downloads `core.jar` from Maven Central when Processing is not installed.
 
 ```bash
-./build.sh            # compiles Java (JDK 17+), JNI bridge (clang), generates dist/
-./install_library.sh  # installs into the sketchbook
-./driver/build_leapcheck.sh
+./build.sh              # Java + native bridge for this platform + dist/LeapMotionForProcessing(.zip)
+./install_library.sh    # copy into ~/Documents/Processing/libraries
+./scripts/run_tests.sh  # ApiTest (73 checks, pure Java) + BridgeTest (59 checks, JNI bridge + mock LeapC)
+./scripts/run_sketch_test.sh   # a real Processing sketch via the CLI against the mock
+./scripts/leap_diag.sh 10      # end-to-end with the real service and device
 ```
 
-Tests (no hardware and no Ultraleap service needed):
+Windows: `native\build_native.bat` and `native\mock\build_mock.bat` from a Developer Command
+Prompt, then `scripts\run_tests.bat`. The release zip is produced by the GitHub Actions
+workflow, which builds the native bridge on the three systems and runs the tests on each
+(without hardware, against the mock).
 
-```bash
-./scripts/run_tests.sh        # ApiTest: synthetic frames, gestures, lists, vectors (73 checks)
-                              # BridgeTest: libLeapJava.dylib + mock libLeapC (50 checks)
-./scripts/run_sketch_test.sh  # real Processing sketch, via the CLI, with the installed library and the mock
-```
+### Releasing
 
-The mock (`native/mock/mock_leapc.c`) is a fake `libLeapC` that emits connection, device,
-policy, 100 fps frames with one hand whose index finger draws a circle, and IR images. It also
-reproduces the Hyperion behaviour of stopping the tracker when a client clears tracking-mode
-policy flags it never set.
+Tag a version (`git tag v3.0.1 && git push --tags`): the workflow attaches
+`LeapMotionForProcessing-<version>.zip` to a GitHub release.
 
-End-to-end diagnostic (JNI bridge + LeapC + service + device):
+### Contributing
 
-```bash
-./scripts/leap_diag.sh 10
-```
+Issues and pull requests are welcome. Everything in the repository (code, comments, examples,
+docs) is in English. Run `scripts/run_tests.sh` before submitting.
 
-Compiling an example with the Processing CLI:
+</details>
 
-```bash
-/Applications/Processing.app/Contents/MacOS/Processing cli \
-    --sketch=$HOME/Documents/Processing/libraries/LeapMotionForProcessing/examples/LM_1_Basics \
-    --output=/tmp/lm1 --force --build
-```
+---
 
-## 8. Troubleshooting
+## Licence
 
-* **"Ultraleap Hand Tracking is not installed"** in the console — the driver is missing: `./driver/install_driver.sh`.
-* **"the Ultraleap tracking service is not running"** — `./driver/leap_service.sh start`
-  (or open `Ultraleap Hand Tracking` in /Applications). Check with `leap_service.sh status`.
-* **Service running but `isConnected()` false / no hands** — confirm the device on USB
-  (`leap_service.sh status` shows "Leap Motion Controller detected"); try another USB port
-  or cable; open the Control Panel to see the cameras.
-* **`isConnected()` true, device detected, but 0 fps and no hands** — the service's tracker
-  stopped (`/var/log/ultraleap/tracker_log.txt` shows `tracking::framerate : 0`). Restart the service:
-  `sudo launchctl kickstart -k system/com.ultraleap.tracking.service` (or `./driver/leap_service.sh restart`),
-  or unplug and replug the Leap Motion. The first 3.0.0 build caused this by clearing policy flags it
-  had never set; it is fixed (the bridge only sends deltas).
-* **Duplicate library / conflicting `com.leapmotion.leap` classes** — remove the old `LeapJava`
-  folder from `libraries` (`install_library.sh` does this automatically).
-* **Processing on Intel (x86_64)** — the dylib is universal; install the
-  `tracking-software-apple-intel-6.2.0.pkg` package (the script picks it by architecture).
-* More messages: `new LeapMotion(this, true)` or `-Dleap.verbose=true`.
-
-## 9. Repository layout
-
-```
-LeepMotionDriver/
-├── README.md, LICENSE.txt, library.properties
-├── build.sh                      builds everything and generates dist/
-├── install_library.sh            installs into ~/Documents/Processing/libraries
-├── src/com/leapmotion/leap/      Java re-implementation of the V2 API over LeapC (+ LeapJNI, GestureRecognizer)
-├── src/de/voidplus/leapmotion/   Processing library (fork; only version strings changed)
-├── native/leapjni.c, LeapC.h     JNI bridge; build_native.sh (arm64 + x86_64); mock/ (fake libLeapC for tests)
-├── driver/                       install_driver.sh, leap_service.sh, uninstall_driver.sh,
-│                                 leapcheck.c (LeapC diagnostic), LaunchAgent plist
-├── examples/                     LM_0_Test (new) + the three original examples
-├── test/java/, test/sketch/      ApiTest and BridgeTest (no hardware), LeapDiag, test sketch
-├── scripts/                      run_tests.sh, run_sketch_test.sh, leap_diag.sh
-└── leap-motion-processing-master/  original library (reference, unchanged)
-```
-
-## 10. Licence
-
-MIT — see [LICENSE.txt](LICENSE.txt). Copyright 2013-2016 Darius Morawiec (original library);
-copyright 2026 Tiago Martins (fork: LeapC re-implementation, JNI bridge, driver scripts).
-
-The Ultraleap Hand Tracking software and the LeapC SDK are property of Ultraleap Ltd. and are
-subject to the Ultraleap licence; they are not redistributed here (the installation script
-downloads them from the official site). The `native/LeapC.h` header is included only to build
-the bridge, under the terms of the Ultraleap Tracking SDK Agreement.
+MIT, see [LICENSE.txt](LICENSE.txt). Copyright 2013-2016 Darius Morawiec (original library),
+copyright 2026 Tiago Martins (this fork). The Ultraleap Hand Tracking software and the LeapC SDK
+belong to Ultraleap Ltd. and have their own licence; they are downloaded from Ultraleap's website
+and not redistributed here.

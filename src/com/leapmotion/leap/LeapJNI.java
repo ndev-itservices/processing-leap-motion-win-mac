@@ -114,14 +114,22 @@ final class LeapJNI {
         String env = System.getenv("LEAPC_PATH");
         if (env != null) candidates.add(env);
         String home = System.getProperty("user.home", "");
+        String pf = System.getenv("ProgramFiles") == null ? "C:\\Program Files" : System.getenv("ProgramFiles");
         String[] apps = {
+                // macOS
                 "/Applications/Ultraleap Hand Tracking.app/Contents/LeapSDK/lib/",
                 home + "/Applications/Ultraleap Hand Tracking.app/Contents/LeapSDK/lib/",
                 "/Applications/Ultraleap Hand Tracking Service.app/Contents/LeapSDK/lib/",
                 "/Library/Application Support/Ultraleap/LeapSDK/lib/",
                 home + "/Library/Application Support/Ultraleap/LeapSDK/lib/",
+                // Linux
                 "/usr/lib/ultraleap-hand-tracking-service/",
-                "/opt/ultraleap/LeapSDK/lib/"
+                "/opt/ultraleap/LeapSDK/lib/",
+                // Windows
+                pf + "\\Ultraleap\\LeapSDK\\lib\\x64\\",
+                pf + "\\Ultraleap\\LeapSDK\\lib\\",
+                pf + "\\Ultraleap\\Ultraleap Hand Tracking\\",
+                "C:\\Program Files\\Ultraleap\\LeapSDK\\lib\\x64\\"
         };
         String[] names = {"libLeapC.6.dylib", "libLeapC.dylib", "libLeapC.5.dylib", "libLeapC.so", "libLeapC.so.6", "libLeapC.so.5", "LeapC.dll"};
         for (String a : apps) for (String n : names) candidates.add(a + n);
