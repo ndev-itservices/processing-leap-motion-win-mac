@@ -143,6 +143,7 @@ typedef struct {
 
     uint64_t  policyCurrent;
     uint64_t  policyDesired;
+    uint64_t  policyApplied;   /* what we last told the service (set/clear are sent as deltas only) */
     int       policyPending;
     int       trackingMode;
 
@@ -221,12 +222,22 @@ static void copy_hand(float* dst, const LEAP_HAND* h) {
     copy_bone(dst + H_ARM, &h->arm);
 }
 
+/*
+ * Sends only the DIFFERENCE between the flags this client asked for and the flags it already
+ * sent. Never clears flags that were not set by us: clearing the tracking-mode flags
+ * (OptimizeHMD / OptimizeScreenTop) that were never set makes the Hyperion service stop
+ * tracking (observed with Hyperion 6.2.0 on macOS: "PolicyFlagUpdate (tracking mode) ... clear: 399"
+ * followed by framerate 0).
+ */
 static void apply_policy_locked(LeapCtx* c) {
     if (!c->connected || !c->fn.SetPolicyFlags) return;
-    uint64_t set = c->policyDesired & LJ_ALL_POLICY_MASK;
-    uint64_t clear = LJ_ALL_POLICY_MASK & ~set;
-    c->fn.SetPolicyFlags(c->conn, set, clear);
+    uint64_t desired = c->policyDesired & LJ_ALL_POLICY_MASK;
+    uint64_t set = desired & ~c->policyApplied;
+    uint64_t clear = c->policyApplied & ~desired;
     c->policyPending = 0;
+    if (!set && !clear) return;
+    c->fn.SetPolicyFlags(c->conn, set, clear);
+    c->policyApplied = desired;
 }
 
 static void handle_device_event(LeapCtx* c, const LEAP_DEVICE_EVENT* ev) {
@@ -321,6 +332,8 @@ static void* poll_thread(void* arg) {
                 c->deviceCount = 0;
                 c->haveDevInfo = 0;
                 c->nHands = 0;
+                c->policyApplied = 0;   /* re-send our flags after reconnecting */
+                c->policyPending = 1;
                 c->pending |= LJ_EV_CONNECTION | LJ_EV_DEVICE;
                 pthread_mutex_unlock(&c->mu);
                 break;

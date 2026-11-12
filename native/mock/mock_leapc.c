@@ -19,7 +19,7 @@
 #define MOCK_H 32
 
 struct _LEAP_CONNECTION {
-    int open; int step; int64_t frameId; uint64_t policy; int policyDirty; int tracking_mode;
+    int open; int step; int64_t frameId; uint64_t policy; int policyDirty; int tracking_mode; int trackerBroken;
     LEAP_ALLOCATOR alloc; int haveAlloc;
     LEAP_HAND hand; LEAP_TRACKING_EVENT trk;
     LEAP_CONNECTION_EVENT connEv; LEAP_DEVICE_EVENT devEv; LEAP_POLICY_EVENT polEv; LEAP_TRACKING_MODE_EVENT tmEv;
@@ -51,7 +51,12 @@ void LeapDestroyConnection(LEAP_CONNECTION c) {
     free(c);
 }
 eLeapRS LeapGetConnectionInfo(LEAP_CONNECTION c, LEAP_CONNECTION_INFO* i) { i->status = c->open ? eLeapConnectionStatus_Connected : eLeapConnectionStatus_NotConnected; return eLeapRS_Success; }
-eLeapRS LeapSetPolicyFlags(LEAP_CONNECTION c, uint64_t set, uint64_t clear) { c->policy = (c->policy | set) & ~clear; c->policyDirty = 1; return eLeapRS_Success; }
+/* Mimics Hyperion 6.2.0 on macOS: clearing tracking-mode flags that were never set stops the tracker. */
+eLeapRS LeapSetPolicyFlags(LEAP_CONNECTION c, uint64_t set, uint64_t clear) {
+    uint64_t modeBits = eLeapPolicyFlag_OptimizeHMD | eLeapPolicyFlag_OptimizeScreenTop;
+    if ((clear & modeBits) & ~c->policy) { c->trackerBroken = 1; fprintf(stderr, "[mock] clear of unset tracking-mode flags (set=%llu clear=%llu): tracker stopped\n", (unsigned long long)set, (unsigned long long)clear); }
+    c->policy = (c->policy | set) & ~clear; c->policyDirty = 1; return eLeapRS_Success;
+}
 eLeapRS LeapSetTrackingMode(LEAP_CONNECTION c, eLeapTrackingMode m) { c->tracking_mode = (int)m; return eLeapRS_Success; }
 eLeapRS LeapGetTrackingMode(LEAP_CONNECTION c) { (void)c; return eLeapRS_Success; }
 eLeapRS LeapSaveConfigValue(LEAP_CONNECTION c, const char* key, const LEAP_VARIANT* v, uint32_t* req) { (void)c; (void)key; (void)v; if (req) *req = 1; return eLeapRS_Success; }
@@ -125,6 +130,7 @@ eLeapRS LeapPollConnection(LEAP_CONNECTION c, uint32_t timeout, LEAP_CONNECTION_
     if (s == 2) { msg->type = eLeapEventType_TrackingMode; c->tmEv.current_tracking_mode = eLeapTrackingMode_Desktop; msg->tracking_mode_event = &c->tmEv; return eLeapRS_Success; }
     if (c->policyDirty) { c->policyDirty = 0; msg->type = eLeapEventType_Policy; c->polEv.current_policy = (uint32_t)c->policy; msg->policy_event = &c->polEv; return eLeapRS_Success; }
     usleep(10000); /* 100 fps */
+    if (c->trackerBroken) return eLeapRS_Timeout;
     c->frameId++;
     if ((c->policy & eLeapPolicyFlag_Images) && (c->frameId % 5) == 0) {
         build_images(c); msg->type = eLeapEventType_Image; msg->image_event = &c->imgEv; return eLeapRS_Success;

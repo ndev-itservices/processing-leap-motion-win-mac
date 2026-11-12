@@ -264,6 +264,11 @@ Compilar um exemplo com o CLI do Processing:
   a antiga `LeapJava` (o `install_library.sh` faz isto automaticamente).
 * **Processing Intel (x86_64)** — a dylib é universal; instale o pacote
   `tracking-software-apple-intel-6.2.0.pkg` (o script escolhe automaticamente pela arquitectura).
+* **`isConnected()` verdadeiro, dispositivo detectado, mas 0 fps e nenhuma mão** — o tracker do serviço
+  parou (em `/var/log/ultraleap/tracker_log.txt` aparece `tracking::framerate : 0`). Reinicie o serviço:
+  `sudo launchctl kickstart -k system/com.ultraleap.tracking.service` (ou `./driver/leap_service.sh restart`),
+  ou desligue e volte a ligar o Leap Motion ao USB. A versão 3.0.0 inicial provocava isto ao limpar
+  flags de política que nunca tinha activado; está corrigido (a ponte só envia diferenças).
 * Mais mensagens: `new LeapMotion(this, true)` ou `-Dleap.verbose=true`.
 
 ## 9. Estrutura do repositório

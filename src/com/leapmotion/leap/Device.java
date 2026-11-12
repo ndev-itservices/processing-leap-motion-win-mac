@@ -31,8 +31,15 @@ public class Device {
     private final String serial;
 
     Device(boolean valid, int status, int caps, int pid, float baselineMm, float hFov, float vFov, float rangeMm, String serial) {
-        this.valid = valid; this.status = status; this.caps = caps; this.pid = pid; this.baselineMm = baselineMm;
-        this.hFov = hFov; this.vFov = vFov; this.rangeMm = rangeMm; this.serial = serial == null ? "" : serial;
+        this.valid = valid; this.status = status; this.caps = caps; this.pid = pid;
+        this.serial = serial == null ? "" : serial;
+        // Hyperion on macOS reports "default device characteristics" (all zero) for the original
+        // Leap Motion Controller; fall back to the values the V2 SDK reported for that device.
+        boolean peripheral = pid == Type.TYPE_PERIPHERAL.swigValue();
+        this.hFov = (hFov == 0 && peripheral) ? 2.303835f : hFov;      // ~132 degrees
+        this.vFov = (vFov == 0 && peripheral) ? 2.007129f : vFov;      // ~115 degrees
+        this.rangeMm = (rangeMm == 0 && peripheral) ? 600f : rangeMm;  // effective range (mm)
+        this.baselineMm = (baselineMm == 0 && peripheral) ? 40f : baselineMm;
     }
 
     public static Device invalid() { return INVALID; }
