@@ -146,9 +146,11 @@ links are here in case you prefer to install it by hand (double-click the .pkg a
 All drivers come from Ultraleap's official page:
 [ultraleap.com/downloads/leap-controller](https://www.ultraleap.com/downloads/leap-controller/).
 
-Tested on macOS 27.0.1 with Processing 4.4.10 and an original Leap Motion Controller. The Windows
-and Linux (Ubuntu 22.04) binaries are built and tested automatically against a simulated device;
-they have not yet been tried with a real Leap Motion. Please report how it goes in an issue.
+**Tested:** macOS 27.0.1, Processing 4.4.10, original Leap Motion Controller (2013).
+**Should work, not yet confirmed with a real device:** Leap Motion Controller 2 (the driver and the
+library support it; the camera overlay example LM_5 may need the projection mode changed with the
+`p` key); Windows and Linux (Ubuntu 22.04), whose binaries are built and tested automatically
+against a simulated device. Please report how it goes in an issue.
 
 ---
 
