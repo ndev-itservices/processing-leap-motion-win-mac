@@ -8,7 +8,7 @@ Darius Morawiec, updated by **Tiago Martins** so that it works on today's comput
 original only ran on old Intel Macs. The programming interface and the examples are the same,
 so old sketches keep working.
 
-> **Tested with the original Leap Motion Controller (2013) on a Mac.**
+> **Tested with the original Leap Motion Controller (2013) on macOS (Apple Silicon) and Windows 11.**
 > The Leap Motion Controller 2 is supported by the driver and the library but has **not been tested**
 > yet; if you have one, please tell us how it goes in an issue.
 
@@ -151,10 +151,11 @@ links are here in case you prefer to install it by hand (double-click the .pkg a
 All drivers come from Ultraleap's official page:
 [ultraleap.com/downloads/leap-controller](https://www.ultraleap.com/downloads/leap-controller/).
 
-**Tested:** macOS 27.0.1, Processing 4.4.10, original Leap Motion Controller (2013).
+**Tested:** macOS 27.0.1 (Apple Silicon) and Windows 11, Processing 4.4.10, original Leap Motion
+Controller (2013).
 **Should work, not yet confirmed with a real device:** Leap Motion Controller 2 (the driver and the
 library support it; the camera overlay example LM_5 may need the projection mode changed with the
-`p` key); Windows and Linux (Ubuntu 22.04), whose binaries are built and tested automatically
+`p` key); Intel Macs and Linux (Ubuntu 22.04), whose binaries are built and tested automatically
 against a simulated device. Please report how it goes in an issue.
 
 ---
