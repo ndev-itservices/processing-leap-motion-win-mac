@@ -9,6 +9,10 @@ on:
   pull_request:
   workflow_dispatch:
 
+# the release step needs to write to the repository (create the release and attach the zip)
+permissions:
+  contents: write
+
 jobs:
   native:
     name: native (${{ matrix.os }})
